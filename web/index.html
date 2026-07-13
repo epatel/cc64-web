@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cc64-web — small-C for the C64, in your browser</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #16181d; --panel: #1e2128; --rail: #191c22; --line: #30343d;
+    --text: #dfe2e8; --dim: #8b919c; --accent: #8fa3f0; --accent-ink: #101321;
+    --err: #e08a8a; --ok: #8fce9a;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #e9e6dd; --panel: #f7f5ef; --rail: #efece3; --line: #cfcabb;
+            --text: #26282e; --dim: #71767e; --accent: #4a3fa0; --accent-ink: #f5f3ff;
+            --err: #a33d3d; --ok: #2c7a3f; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, sans-serif; }
+
+  header { display: flex; align-items: baseline; gap: 14px;
+           padding: 10px 18px 9px; border-bottom: 1px solid var(--line); }
+  .wordmark { font: 700 17px/1 var(--mono); letter-spacing: .02em; }
+  .wordmark em { font-style: normal; color: var(--accent); }
+  .wordmark .stripe { display: inline-block; width: 26px; height: 11px; margin-right: 9px;
+    vertical-align: -1px; border-radius: 2px;
+    background: linear-gradient(180deg,#e04a3f 20%,#e8973f 20% 40%,#e8d43f 40% 60%,#3fa053 60% 80%,#3f6ee0 80%); }
+  header .tag { color: var(--dim); font-size: .85rem; }
+  header a { color: var(--accent); text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  header .right { margin-left: auto; }
+
+  .app { display: grid; grid-template-columns: 224px minmax(0,1fr) 360px;
+         height: calc(100vh - 41px); }
+  @media (max-width: 980px) { .app { grid-template-columns: 1fr; height: auto; } }
+
+  /* ---- files rail ---- */
+  nav { background: var(--rail); border-right: 1px solid var(--line);
+        padding: 12px 0; overflow-y: auto; }
+  .projbar { display: flex; gap: 4px; align-items: center; padding: 0 10px 10px;
+             border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+  .projbar select { flex: 1; min-width: 0; background: var(--bg); color: var(--text);
+                    border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px;
+                    font: 12.5px var(--mono); }
+  .iconbtn { background: none; border: 0; color: var(--dim); font: 600 13px/1 var(--mono);
+             cursor: pointer; padding: 4px 5px; border-radius: 4px; }
+  .iconbtn:hover { color: var(--accent); background: var(--panel); }
+  nav h2 { font: 600 10.5px/1 var(--mono); letter-spacing: .14em; color: var(--dim);
+           text-transform: uppercase; margin: 14px 14px 6px; display: flex; }
+  nav h2 .iconbtn { margin-left: auto; padding: 0 2px; color: var(--accent); }
+  .file { display: flex; align-items: center; width: 100%; text-align: left;
+          background: none; border: 0; border-left: 2px solid transparent;
+          color: var(--text); font: 12.5px/1 var(--mono); padding: 6px 8px 6px 14px;
+          cursor: pointer; gap: 7px; }
+  .file:hover { background: var(--panel); }
+  .file.active { background: var(--panel); border-left-color: var(--accent); }
+  .file .k { color: var(--dim); font-size: 10px; }
+  .file .del { margin-left: auto; color: var(--dim); visibility: hidden; padding: 0 4px; }
+  .file.active .del { visibility: visible; }
+  .file .del:hover { color: var(--err); }
+  .file.lib { color: var(--dim); }
+  .file.lib.active { color: var(--text); }
+
+  /* ---- editor ---- */
+  .editor { display: flex; flex-direction: column; min-width: 0; }
+  .edbar { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+           border-bottom: 1px solid var(--line); }
+  .edbar .name { font: 600 12.5px/1 var(--mono); }
+  .edbar .ro { color: var(--dim); font-size: .8rem; border: 1px solid var(--line);
+               border-radius: 4px; padding: 2px 7px; display: none; }
+  .edbar .spacer { flex: 1; }
+  button.act { background: var(--accent); color: var(--accent-ink); border: 0;
+               border-radius: 6px; padding: 6px 14px; font: 600 13px system-ui;
+               cursor: pointer; }
+  button.quiet { background: none; color: var(--accent); border: 1px solid var(--line);
+                 border-radius: 6px; padding: 5px 12px; font: 13px system-ui; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: default; }
+  button:focus-visible, .file:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .edwrap { position: relative; flex: 1; min-height: 300px; }
+  .edwrap pre, .edwrap textarea {
+    position: absolute; inset: 0; margin: 0; padding: 14px 16px;
+    font: 13px/1.5 var(--mono); tab-size: 4; white-space: pre; overflow: auto;
+    border: 0; background: transparent; word-break: normal; overflow-wrap: normal;
+  }
+  .edwrap pre { pointer-events: none; z-index: 1; }
+  .edwrap textarea { z-index: 2; color: transparent; caret-color: var(--text);
+                     resize: none; outline: none; }
+  .edwrap textarea::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .tok-c  { color: var(--dim); font-style: italic; }
+  .tok-s  { color: var(--ok); }
+  .tok-p  { color: var(--accent); }
+  .tok-k  { color: #d0a3e8; font-weight: 600; }
+  .tok-n  { color: #7ec7d6; }
+
+  /* ---- result column ---- */
+  aside { border-left: 1px solid var(--line); background: var(--panel);
+          padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  aside h2 { font: 600 10.5px/1 var(--mono); letter-spacing: .14em; color: var(--dim);
+             text-transform: uppercase; margin: 0; }
+  #log { font: 12px/1.55 var(--mono); white-space: pre-wrap; margin: 0;
+         min-height: 90px; max-height: 260px; overflow-y: auto; }
+  .ok { color: var(--ok); } .err { color: var(--err); } .dim { color: var(--dim); }
+
+  /* PRG artifact: a quiet, draggable file row */
+  .pill { display: none; align-items: center; gap: 10px;
+          border: 1px solid var(--line); border-radius: 8px;
+          padding: 10px 12px; background: var(--bg); }
+  .pill.ready { display: flex; cursor: grab; }
+  .pill.ready:active { cursor: grabbing; }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+  .pill .meta { min-width: 0; }
+  .pill .fn { font: 600 12.5px/1.3 var(--mono); }
+  .pill .info { color: var(--dim); font: 11.5px/1.3 var(--mono); }
+  .pill .grab { margin-left: auto; color: var(--dim); font-size: .78rem;
+                border: 1px dashed var(--line); border-radius: 5px; padding: 3px 8px; }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  aside select { background: var(--bg); color: var(--text); border: 1px solid var(--line);
+                 border-radius: 6px; padding: 5px 8px; font: 12.5px var(--mono); max-width: 100%; }
+  .hint { font-size: .82rem; color: var(--dim); margin: 0; }
+  .hint b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="wordmark"><span class="stripe" aria-hidden="true"></span>cc64<em>-web</em></span>
+  <span class="tag">small-C compiler for the Commodore 64 — a JS port of
+    <a href="https://github.com/pzembrod/cc64" target="_blank" rel="noopener">pzembrod/cc64</a></span>
+  <span class="right tag"><a href="https://web64.nofs.ai/ide/" target="_blank" rel="noopener">Web64 IDE ↗</a></span>
+</header>
+
+<div class="app">
+  <nav aria-label="Files">
+    <div class="projbar">
+      <select id="proj" aria-label="Project"></select>
+      <button class="iconbtn" id="newproj" title="New project">＋</button>
+      <button class="iconbtn" id="renproj" title="Rename project">✎</button>
+      <button class="iconbtn" id="delproj" title="Delete project">✕</button>
+      <button class="iconbtn" id="exportproj" title="Download project as .cc64proj.json">⤓</button>
+      <button class="iconbtn" id="importproj" title="Upload a .cc64proj.json project">⤒</button>
+      <input type="file" id="importfile" accept=".json,application/json" hidden>
+    </div>
+    <div id="filelist"></div>
+  </nav>
+
+  <section class="editor">
+    <div class="edbar">
+      <span class="name" id="fname">–</span>
+      <span class="ro" id="ro">read-only library file</span>
+      <span class="spacer"></span>
+      <button class="quiet" id="format" title="Reindent by brace depth">Format</button>
+      <button class="quiet" id="compileproj"
+        title="Unity build: concatenate all .c files, hoist and dedupe #includes, compile as one">Compile project</button>
+      <button class="act" id="compile" title="Compile this file (Ctrl/Cmd+Enter)">Compile</button>
+    </div>
+    <div class="edwrap">
+      <pre id="hl" aria-hidden="true"><code id="hlcode"></code></pre>
+      <textarea id="src" spellcheck="false" aria-label="C source editor"></textarea>
+    </div>
+  </section>
+
+  <aside>
+    <h2>Compiler</h2>
+    <pre id="log"><span class="dim">Pick a .c file and press Compile (Ctrl/Cmd+Enter).
+#include resolves against this project's files and the library.</span></pre>
+
+    <h2>Program</h2>
+    <div class="pill" id="pill" draggable="false">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="meta">
+        <div class="fn" id="prgname">–</div>
+        <div class="info" id="prginfo"></div>
+      </span>
+      <span class="grab">drag to Web64</span>
+    </div>
+    <div class="row">
+      <button class="act" id="download" disabled>Download .prg</button>
+      <select id="golden" aria-label="Reference PRGs">
+        <option value="">reference PRGs…</option>
+        <option value="helloworld-c64.prg">helloworld-c64.prg</option>
+        <option value="sieve-c64.prg">sieve-c64.prg</option>
+        <option value="printf-c64.prg">printf-c64.prg</option>
+      </select>
+    </div>
+    <p class="hint">Drop the program row onto a <b>Web64 IDE</b> tab — it arrives
+      as a .prg file — or download and add it there. The compiler's output is
+      verified byte-identical to real cc64 (the reference PRGs, built by cc64
+      running in VICE, double as its test goldens).</p>
+  </aside>
+</div>
+
+<script type="module">
+  import { compile } from '../src/compile.js';
+  import { amalgamate } from '../src/amalgamate.js';
+  import { KEYWORDS } from '../src/scanner.js';
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  // ---------- storage: named projects, each a set of .c/.h files ----------
+  const LIB = ['rt-c64-08-9f.h', 'libc-c64.h', 'ctype.h', 'stdio.h', 'stdlib.h', 'string.h'];
+  const LIB_BIN = ['rt-c64-08-9f.o', 'rt-c64-08-9f.i', 'libc-c64.o', 'libc-c64.i'];
+  const SAMPLES = ['helloworld-c64.c', 'printf-c64.c', 'sieve-c64.c', 'kernal-io-c64.c'];
+  const LS = 'cc64web.v2';
+  const LS_V1 = 'cc64web.files.v1';
+
+  const lib = new Map();
+  let state = null;   // { projects: {name: {files: {fname: text}}}, activeProject, activeFile }
+  let active = null;  // {name, readonly}
+
+  const store = () => localStorage.setItem(LS, JSON.stringify(state));
+  const proj = () => state.projects[state.activeProject];
+
+  async function boot() {
+    await Promise.all([
+      ...LIB.map(async (h) => {
+        const r = await fetch(`../assets/rt/${h}`);
+        if (r.ok) lib.set(h, await r.text());
+      }),
+      ...LIB_BIN.map(async (b) => {
+        const r = await fetch(`../assets/rt/${b}`);
+        if (r.ok) lib.set(b, new Uint8Array(await r.arrayBuffer()));
+      }),
+    ]);
+    const stored = localStorage.getItem(LS);
+    if (stored) {
+      state = JSON.parse(stored);
+    } else {
+      const files = {};
+      for (const s of SAMPLES) {
+        const r = await fetch(`../test/fixtures/${s}`);
+        if (r.ok) files[s] = await r.text();
+      }
+      const v1 = localStorage.getItem(LS_V1);
+      state = { projects: { samples: { files } }, activeProject: 'samples', activeFile: SAMPLES[0] };
+      if (v1) { state.projects['migrated'] = { files: JSON.parse(v1) }; localStorage.removeItem(LS_V1); }
+      store();
+    }
+    if (!(state.activeProject in state.projects)) state.activeProject = Object.keys(state.projects)[0];
+    renderProjects();
+    renderFiles();
+    openFile(state.activeFile in proj().files ? state.activeFile : Object.keys(proj().files)[0], false);
+  }
+
+  // ---------- projects ----------
+  function renderProjects() {
+    const sel = $('proj');
+    sel.replaceChildren(...Object.keys(state.projects).map((n) =>
+      new Option(n, n, false, n === state.activeProject)));
+  }
+  $('proj').onchange = (e) => {
+    state.activeProject = e.target.value;
+    store(); renderFiles();
+    openFile(Object.keys(proj().files)[0], false);
+  };
+  $('newproj').onclick = () => {
+    const name = prompt('Project name:', `project-${Object.keys(state.projects).length + 1}`);
+    if (!name || state.projects[name]) return;
+    state.projects[name] = { files: { 'main.c': '#include "rt-c64-08-9f.h"\n\nmain()\n{\n}\n' } };
+    state.activeProject = name;
+    store(); renderProjects(); renderFiles(); openFile('main.c', false);
+  };
+  $('renproj').onclick = () => {
+    const name = prompt('Rename project:', state.activeProject);
+    if (!name || name === state.activeProject || state.projects[name]) return;
+    state.projects[name] = proj();
+    delete state.projects[state.activeProject];
+    state.activeProject = name;
+    store(); renderProjects();
+  };
+  $('delproj').onclick = () => {
+    if (Object.keys(state.projects).length < 2) { alert('Cannot delete the last project.'); return; }
+    if (!confirm(`Delete project "${state.activeProject}" and its files?`)) return;
+    delete state.projects[state.activeProject];
+    state.activeProject = Object.keys(state.projects)[0];
+    store(); renderProjects(); renderFiles();
+    openFile(Object.keys(proj().files)[0], false);
+  };
+
+  // ---------- project download / upload ----------
+  $('exportproj').onclick = () => {
+    const data = { format: 'cc64web-project', version: 1,
+                   name: state.activeProject, files: proj().files };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)],
+      { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${state.activeProject}.cc64proj.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  $('importproj').onclick = () => $('importfile').click();
+  $('importfile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    let data;
+    try { data = JSON.parse(await file.text()); }
+    catch { log('<span class="err">not a valid project file (JSON parse failed)</span>'); return; }
+    const files = data?.files;
+    if (data?.format !== 'cc64web-project' || !files || typeof files !== 'object' ||
+        !Object.entries(files).every(([n, t]) => /\.(c|h)$/.test(n) && typeof t === 'string')) {
+      log('<span class="err">not a cc64web project file (expected {format:"cc64web-project", files:{*.c/*.h: text}})</span>');
+      return;
+    }
+    let name = String(data.name || file.name.replace(/\.cc64proj\.json$|\.json$/, '')) || 'imported';
+    for (let i = 2; name in state.projects; i++) name = `${data.name || 'imported'}-${i}`;
+    state.projects[name] = { files: { ...files } };
+    state.activeProject = name;
+    store(); renderProjects(); renderFiles();
+    openFile(Object.keys(files)[0], false);
+    log(`<span class="ok">imported project "${esc(name)}"</span> — ${Object.keys(files).length} files`);
+  });
+
+  // ---------- files ----------
+  function renderFiles() {
+    const list = $('filelist');
+    list.replaceChildren();
+    const sec = (title, onAdd) => {
+      const h = document.createElement('h2');
+      h.textContent = title;
+      if (onAdd) {
+        const b = document.createElement('button');
+        b.className = 'iconbtn'; b.textContent = '＋'; b.title = 'New file'; b.onclick = onAdd;
+        h.appendChild(b);
+      }
+      list.appendChild(h);
+    };
+    sec('Files', newFile);
+    const names = Object.keys(proj().files)
+      .sort((a, b) => a.endsWith('.h') - b.endsWith('.h') || a.localeCompare(b));
+    for (const name of names) list.appendChild(fileButton(name, false));
+    sec('Library');
+    for (const name of LIB) if (lib.has(name)) list.appendChild(fileButton(name, true));
+  }
+
+  function fileButton(name, readonly) {
+    const b = document.createElement('button');
+    b.className = 'file' + (readonly ? ' lib' : '') +
+      (active?.name === name && active?.readonly === readonly ? ' active' : '');
+    b.innerHTML = `<span class="k">${readonly ? '◇' : name.endsWith('.h') ? '·h' : '·c'}</span>${esc(name)}`;
+    if (!readonly) {
+      const del = document.createElement('span');
+      del.className = 'del'; del.textContent = '✕'; del.title = `Delete ${name}`;
+      del.onclick = (e) => { e.stopPropagation(); delFile(name); };
+      b.appendChild(del);
+    }
+    b.onclick = () => openFile(name, readonly);
+    return b;
+  }
+
+  function openFile(name, readonly) {
+    if (!name) return;
+    active = { name, readonly };
+    $('src').value = readonly ? (lib.get(name) ?? '') : (proj().files[name] ?? '');
+    $('src').readOnly = readonly;
+    $('fname').textContent = readonly ? name : `${state.activeProject} / ${name}`;
+    $('ro').style.display = readonly ? 'inline' : 'none';
+    $('compile').disabled = readonly || !name.endsWith('.c');
+    $('format').disabled = readonly;
+    if (!readonly) { state.activeFile = name; store(); }
+    highlight();
+    renderFiles();
+  }
+
+  function newFile() {
+    let name = prompt('File name (.c or .h):', 'new.c');
+    if (!name) return;
+    if (!/\.(c|h)$/.test(name)) name += '.c';
+    if (!(name in proj().files)) {
+      proj().files[name] = name.endsWith('.c')
+        ? '#include "rt-c64-08-9f.h"\n\nmain()\n{\n}\n'
+        : `/* ${name} */\n`;
+    }
+    store(); renderFiles(); openFile(name, false);
+  }
+
+  function delFile(name) {
+    if (!confirm(`Delete ${name}?`)) return;
+    delete proj().files[name];
+    store();
+    if (active?.name === name) active = null;
+    renderFiles();
+    openFile(Object.keys(proj().files)[0], false);
+  }
+
+  // ---------- editor: highlight overlay ----------
+  const KW = new RegExp(String.raw`\b(${KEYWORDS.join('|')})\b`, 'g');
+  const TOKEN = new RegExp([
+    String.raw`(\/\*[\s\S]*?(?:\*\/|$))`,
+    String.raw`("(?:\\.|[^"\\\n])*"?)`,
+    String.raw`('(?:\\.|[^'\\\n])*'?)`,
+    String.raw`(^[ \t]*#.*$)`,
+    String.raw`(\b(?:0[xX][0-9a-fA-F]+|\d+)\b)`,
+  ].join('|'), 'gm');
+
+  function highlight() {
+    const src = $('src').value;
+    let out = '', last = 0;
+    for (const m of src.matchAll(TOKEN)) {
+      out += plain(src.slice(last, m.index));
+      const cls = m[1] ? 'c' : m[2] || m[3] ? 's' : m[4] ? 'p' : 'n';
+      out += `<span class="tok-${cls}">${esc(m[0])}</span>`;
+      last = m.index + m[0].length;
+    }
+    out += plain(src.slice(last));
+    $('hlcode').innerHTML = out + '\n';
+    syncScroll();
+  }
+  const plain = (s) => esc(s).replace(KW, '<span class="tok-k">$1</span>');
+
+  function syncScroll() {
+    $('hl').scrollTop = $('src').scrollTop;
+    $('hl').scrollLeft = $('src').scrollLeft;
+  }
+  $('src').addEventListener('scroll', syncScroll);
+  $('src').addEventListener('input', () => {
+    if (!active?.readonly) { proj().files[active.name] = $('src').value; store(); }
+    highlight();
+  });
+  $('src').addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      document.execCommand('insertText', false, '  ');
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); $('compile').click(); }
+  });
+
+  // ---------- formatter: brace-depth reindent (string/comment aware) ----------
+  function format() {
+    const lines = $('src').value.split('\n');
+    let depth = 0, inComment = false;
+    const out = lines.map((line) => {
+      const body = line.trim();
+      let indent = depth;
+      if (!inComment && /^[}\)]/.test(body)) indent = Math.max(0, depth - 1);
+      const formatted = body === '' ? '' :
+        inComment ? line.replace(/\s+$/, '') :
+        body.startsWith('#') ? body :
+        '  '.repeat(indent) + body;
+      for (let i = 0; i < body.length; i++) {
+        const c = body[i];
+        if (inComment) { if (c === '*' && body[i + 1] === '/') { inComment = false; i++; } continue; }
+        if (c === '/' && body[i + 1] === '*') { inComment = true; i++; continue; }
+        if (c === '"' || c === "'") {
+          for (i++; i < body.length && body[i] !== c; i++) if (body[i] === '\\') i++;
+          continue;
+        }
+        if (c === '{') depth++;
+        if (c === '}') depth = Math.max(0, depth - 1);
+      }
+      return formatted;
+    });
+    $('src').value = out.join('\n');
+    $('src').dispatchEvent(new Event('input'));
+  }
+  $('format').onclick = format;
+
+  // ---------- compile ----------
+  const log = (html) => { $('log').innerHTML = html; };
+
+  function runCompile(source, fileName, prgName, preamble = '') {
+    const fs = new Map([...lib, ...Object.entries(proj().files)]);
+    try {
+      const res = compile({ source, fileName, fs });
+      if (res.prg) {
+        setPrg(res.prg, prgName, 'compiled by cc64-web');
+        log(`${preamble}<span class="ok">compiled ${esc(prgName)}</span> — ${res.prg.length} bytes, ` +
+            `module <b>${esc(res.layout.moduleName)}</b>, code $${res.layout.codeFirst.toString(16)}–$${(res.layout.codeFirst + res.codeBytes).toString(16)}` +
+            (res.staticsBytes ? `, ${res.staticsBytes} init bytes` : ''));
+      } else {
+        log(`${preamble}<span class="err">${esc(res.diagnostics.join('\n'))}</span>`);
+      }
+    } catch (e) {
+      log(`${preamble}<span class="err">${esc(e.message)}</span>`);
+    }
+  }
+
+  $('compile').onclick = () => {
+    if (!active || active.readonly) return;
+    runCompile($('src').value, active.name, active.name.replace(/\.c$/, '.prg'));
+  };
+
+  $('compileproj').onclick = () => {
+    try {
+      const u = amalgamate(proj().files);
+      const preamble =
+        `<span class="dim">unity build: ${u.files.map(esc).join(' + ')}\n` +
+        `includes hoisted: ${u.includes.map(esc).join(', ')}</span>\n`;
+      runCompile(u.source, `${state.activeProject}.c`, `${state.activeProject}.prg`, preamble);
+    } catch (e) {
+      log(`<span class="err">${esc(e.message)}</span>`);
+    }
+  };
+
+  // ---------- program artifact ----------
+  let prgBytes = null, prgName = '', prgUrl = '';
+  function setPrg(bytes, name, origin) {
+    prgBytes = bytes; prgName = name;
+    if (prgUrl) URL.revokeObjectURL(prgUrl);
+    prgUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    const load = bytes[0] | (bytes[1] << 8);
+    $('prgname').textContent = name;
+    $('prginfo').textContent =
+      `${bytes.length} bytes · load $${load.toString(16).padStart(4, '0')}${origin ? ` · ${origin}` : ''}`;
+    const pill = $('pill');
+    pill.classList.add('ready');
+    pill.draggable = true;
+    $('download').disabled = false;
+  }
+
+  $('golden').onchange = async (e) => {
+    const name = e.target.value;
+    if (!name) return;
+    const r = await fetch(`../test/fixtures/golden/${name}`);
+    setPrg(new Uint8Array(await r.arrayBuffer()), name, 'oracle reference');
+    log(`<span class="ok">${esc(name)}</span> loaded — compiled by real cc64 in VICE.`);
+  };
+
+  $('download').onclick = () => {
+    const a = document.createElement('a');
+    a.href = prgUrl; a.download = prgName; a.click();
+  };
+
+  $('pill').addEventListener('dragstart', (e) => {
+    if (!prgBytes) { e.preventDefault(); return; }
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('DownloadURL',
+      `application/octet-stream:${prgName}:${new URL(prgUrl, location.href)}`);
+  });
+
+  boot();
+</script>
+</body>
+</html>

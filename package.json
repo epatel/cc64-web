@@ -1,0 +1,13 @@
+{
+  "name": "cc64-web",
+  "version": "0.1.0",
+  "description": "JavaScript reimplementation of the cc64 small-C compiler for C64, targeting browser use with Web64",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node test/scanner.test.mjs && node test/frontend.test.mjs && node test/amalgamate.test.mjs && node test/vasm.test.mjs && node test/linker.test.mjs && node test/compile.test.mjs && node test/d64.test.mjs",
+    "test:oracle": "bash tools/oracle/reference-compile.sh",
+    "web": "node tools/serve.mjs"
+  },
+  "license": "GPL-3.0"
+}
