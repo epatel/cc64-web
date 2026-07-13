@@ -2,3 +2,4 @@
 node_modules/
 web/multi-demo.prg
 test/hello2.prg
+examples/raytracer/raytracer.prg
