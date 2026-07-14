@@ -13,6 +13,19 @@ both ways, diff the PRGs. Where byte-identity is impractical, behavioural
 equivalence (program runs the same) is acceptable — but divergences must be
 listed in this file.
 
+Deliberate divergences (extensions — output is byte-identical unless a
+source uses them):
+
+- **`zeropage` storage class** (cc64-web only; real cc64 rejects the
+  keyword): `zeropage int x;` at file scope allocates the variable from
+  $57..$70 (BASIC numeric work area + FAC — free while the program only
+  calls the KERNAL, which is all cc64's runtime does), and vasm emits
+  zero-page addressing for any data address < $100 — so explicit
+  `int x *= 0x02;` placements get zp opcodes too (real cc64 always emits
+  absolute). No initializers (zp vars are not part of the reversed init
+  stream); pool overflow and `zeropage` functions are compile errors.
+  cc64's runtime itself owns $fb-$fe. See `test/zeropage.test.mjs`.
+
 Fidelity rules discovered so far:
 
 - 16-bit ints, all arithmetic wraps at 16 bits.

@@ -17,6 +17,13 @@ import {
 
 export class CompileFatal extends Error {}
 
+// Pool for the 'zeropage' storage class (cc64-web extension): $57..$70 is
+// the BASIC numeric work area + FAC — unused as long as the program only
+// calls the KERNAL (cc64's runtime does), and safe to trash even when
+// returning to BASIC afterwards. cc64's runtime itself owns $fb-$fe.
+export const ZP_POOL_FIRST = 0x57;
+export const ZP_POOL_LAST = 0x70;
+
 const elemSize = (t) =>
   (isChar(t) && (arrayQ(t) || (t & (T_POINTER | T_FUNCTION)) === 0)) ? 1 : 2;
 
@@ -39,6 +46,8 @@ export class Parser {
     this.functionDefined = false;
     this.isFirst = true;         // (1st
     this.externFlag = false;
+    this.zpFlag = false;         // 'zeropage' storage class (cc64-web extension)
+    this.zpNext = ZP_POOL_FIRST; // next free zero-page pool address
     this.nObj = 1;               // #/obj
     this.dimd = false;           // []dim'd
     this.initd = false;          // []init'd
@@ -447,6 +456,10 @@ export class Parser {
     const e = this.externQ(t);
     if (e.f) return e;
     if (this.comesKw('static')) return { t: t & ~T_EXTERN, f: true };
+    if (this.comesKw('zeropage')) {         // cc64-web extension (not in cc64)
+      this.zpFlag = true;
+      return { t: t & ~T_EXTERN, f: true };
+    }
     return { t, f: false };
   }
   classQ(t) {
@@ -459,6 +472,7 @@ export class Parser {
 
   orType(classFn, t) {                    // or-type: mechanics
     this.externFlag = false;
+    this.zpFlag = false;
     let r = classFn(t);
     if (r.f) return { t: this.typeNameQ(r.t).t, f: true };
     r = this.typeNameQ(t);
@@ -681,6 +695,17 @@ export class Parser {
     return { v: this.cg.dynAllot(elemSize(t) * this.nObj), t };
   }
 
+  createZp(t) {                            // 'zeropage' storage class
+    const v = this.zpNext;
+    const size = elemSize(t) * this.nObj;
+    if (v + size > ZP_POOL_LAST + 1) {
+      this.error(`zeropage: pool full ($${ZP_POOL_FIRST.toString(16)}..$${ZP_POOL_LAST.toString(16)}, ${ZP_POOL_LAST + 1 - ZP_POOL_FIRST} bytes)`);
+      return { v: this.statics.addr, t };  // keep going with a dummy
+    }
+    this.zpNext += size;
+    return { v, t };
+  }
+
   defineData(id, t) {
     if (this.externFlag) { this.declare(id, t); return; }
     this.nInits = 0;
@@ -695,6 +720,11 @@ export class Parser {
         this.v['.size'](elemSize(obj.t));
         this.v['.sta.s(base),#'](obj.v);
       }
+    } else if (this.zpFlag) {                       // zeropage (cc64-web ext.)
+      if (this.comesOp('='))
+        this.error('zeropage: no initializers (not part of the init stream)');
+      if (arrayQ(t)) t = this.dimArray(t);
+      obj = this.createZp(t);
     } else {                                        // global/static
       if (this.comesOp('=')) this.staticInit(t);
       if (arrayQ(t)) t = this.dimArray(t);
@@ -781,6 +811,7 @@ export class Parser {
 
   definitionDecl(id, t) {                   // definition' (top level)
     if (this.comesOp('*=')) { this.defineExtern(id, t); return; }
+    if (this.zpFlag && functionQ(t)) this.error('zeropage: variables only');
     if (functionQ(t)) this.defineFunction(id, t);
     else {
       this.putSymbolFn = (n) => this.symtab.putglobal(n);

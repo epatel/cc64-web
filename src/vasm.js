@@ -177,14 +177,21 @@ export class VAsm {
     this.b(0xa9); this.b(lo(p));
     if (this.size === 2) { this.b(0xa2); this.b(hi(p)); }
   }
+  // Data references below $100 use zero-page addressing (cc64-web extension
+  // for the 'zeropage' storage class and *= placements in the zero page;
+  // real cc64 always emits absolute). Normal statics/code never get here.
+  mem(absOp, p) {
+    if (p < 0x100) { this.b(absOp - 8); this.b(p); }   // abs -> zp opcode
+    else { this.b(absOp); this.w(p); }
+  }
   '.lda.s'(p) {
-    this.b(0xad); this.w(p);
-    if (this.size === 2) { this.b(0xae); this.w(p + 1); }
+    this.mem(0xad, p);
+    if (this.size === 2) this.mem(0xae, p + 1);
     if (this.size === 1) { this.b(0xa2); this.b(0x00); }
   }
   '.sta.s'(p) {
-    this.b(0x8d); this.w(p);
-    if (this.size === 2) { this.b(0x8e); this.w(p + 1); }
+    this.mem(0x8d, p);
+    if (this.size === 2) this.mem(0x8e, p + 1);
   }
   '.lda.s(zp)'() {
     if (this.size === 2) { for (const v of [0xa0, 0x01, 0xb1, this.zp, 0xaa, 0x88]) this.b(v); }
@@ -220,25 +227,27 @@ export class VAsm {
     }
   }
 
+  // branch offset skipping one following mem-instruction (3 bytes abs, 2 zp)
+  memlen(p) { return p < 0x100 ? 2 : 3; }
   '.incr.s'(p) {
-    this.b(0xee); this.w(p);
-    if (this.size === 2) { this.b(0xd0); this.b(0x03); this.b(0xee); this.w(p + 1); }
+    this.mem(0xee, p);
+    if (this.size === 2) { this.b(0xd0); this.b(this.memlen(p + 1)); this.mem(0xee, p + 1); }
   }
   '.decr.s'(p) {
-    if (this.size === 2) { this.b(0xac); this.w(p); this.b(0xd0); this.b(0x03); this.b(0xce); this.w(p + 1); }
-    this.b(0xce); this.w(p);
+    if (this.size === 2) { this.mem(0xac, p); this.b(0xd0); this.b(this.memlen(p + 1)); this.mem(0xce, p + 1); }
+    this.mem(0xce, p);
   }
   '.2incr.s'(p) {
     if (this.size === 2) {
-      this.b(0xac); this.w(p); this.b(0xc0); this.b(0xfe); this.b(0x90); this.b(0x03); this.b(0xee); this.w(p + 1);
+      this.mem(0xac, p); this.b(0xc0); this.b(0xfe); this.b(0x90); this.b(this.memlen(p + 1)); this.mem(0xee, p + 1);
     }
-    this.b(0xee); this.w(p); this.b(0xee); this.w(p);
+    this.mem(0xee, p); this.mem(0xee, p);
   }
   '.2decr.s'(p) {
     if (this.size === 2) {
-      this.b(0xac); this.w(p); this.b(0xc0); this.b(0x02); this.b(0xb0); this.b(0x03); this.b(0xce); this.w(p + 1);
+      this.mem(0xac, p); this.b(0xc0); this.b(0x02); this.b(0xb0); this.b(this.memlen(p + 1)); this.mem(0xce, p + 1);
     }
-    this.b(0xce); this.w(p); this.b(0xce); this.w(p);
+    this.mem(0xce, p); this.mem(0xce, p);
   }
 
   // ---- jumps ----

@@ -28,6 +28,7 @@ export const KEYWORDS = [
   'do', 'if', 'for', 'int', 'auto', 'case', 'char', 'else', 'goto', 'break',
   'while', 'extern', 'return', 'static', 'switch', 'default', 'continue',
   'register', '_fastcall',
+  'zeropage',   // cc64-web extension: file-scope vars in the zero page
 ];
 
 // operator token values in the original enum order (scanner.fth block 41)

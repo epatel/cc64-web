@@ -47,9 +47,10 @@ int n;
 }
 
 /* 8.8 * 8.8 -> 8.8, truncating toward zero (sign-magnitude).
- * Working variables are globals: cc64 compiles globals to fast absolute
- * addressing, locals to (frame),y indirection - big win at this call rate. */
-int m_ah, m_al, m_bh, m_bl, m_t, m_u, m_r, m_s;
+ * Working variables live in the zero page (cc64-web 'zeropage' extension):
+ * globals beat locals ((frame),y indirection), and zp beats absolute by a
+ * cycle per access - it all adds up at this call rate. */
+zeropage int m_ah, m_al, m_bh, m_bl, m_t, m_u, m_r, m_s;
 
 int fmul(a, b)
 int a, b;

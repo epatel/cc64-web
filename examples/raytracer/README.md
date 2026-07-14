@@ -41,7 +41,8 @@ the compiled PRG on `tools/run6502.mjs`.
 | row constants, sphere x-band, byte plotting | 1.67 G | 28 min |
 | table-of-squares fmul, char-pointer byte access | 1.36 G | 23 min |
 | fmul working vars as globals | 1.157 G | 19.6 min |
-| dx^2 by second differences: hit test = one compare | **1.121 G** (measured) | **19.0 min** |
+| dx^2 by second differences: hit test = one compare | 1.121 G | 19.0 min |
+| fmul working vars `zeropage` (cc64-web extension) | **1.083 G** (measured) | **18.3 min** |
 
 **The asm original measures 387 M cycles = 6.6 min at 1x** on the same
 harness (full frame verified) — the C version is 2.9x slower: 3.4x the
@@ -76,7 +77,10 @@ globals.
   (char *loads* clear the high byte), or force int-ness with `0 + NAME`
   at argument sites. Character literals (`'a'`) are int-typed and safe.
 - **Locals cost ~2x globals**: locals are (frame),y indirection, globals
-  are absolute addressing. Hot leaf functions want file-scope globals.
+  are absolute addressing. Hot leaf functions want file-scope globals —
+  or `zeropage` globals (cc64-web extension, $57..$70 pool), which shave
+  another cycle per access. Note the extension does not compile on real
+  cc64.
 - **The locals stack starts right after the loaded PRG image** and grows
   up: a big program plus a bitmap at $4000 collide silently. Hence the
   bitmap at $e000 under the ROM (writes land in RAM; never read it back).
