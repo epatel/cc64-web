@@ -59,11 +59,15 @@ int init_video()
   *v = 0;
   p = 0xe000;                    /* clear bitmap (RAM under the KERNAL ROM:
                                     the renderer only ever writes) */
-  for (i = 0; i < 8000; ++i)
-    *p++ = 0;
+  for (i = 0; i < 1000; ++i) {
+    *p++ = 0; *p++ = 0; *p++ = 0; *p++ = 0;
+    *p++ = 0; *p++ = 0; *p++ = 0; *p++ = 0;
+  }
   p = 0xc400;                    /* white on black */
-  for (i = 0; i < 1000; ++i)
-    *p++ = 0x10;
+  for (i = 0; i < 125; ++i) {
+    *p++ = 0x10; *p++ = 0x10; *p++ = 0x10; *p++ = 0x10;
+    *p++ = 0x10; *p++ = 0x10; *p++ = 0x10; *p++ = 0x10;
+  }
 }
 
 /* Render state at file scope: cc64 compiles globals to absolute addressing,
@@ -75,7 +79,7 @@ __zeropage char sh, bits;
 int y, dy, i;
 int t2, dhi, dlo, z256, hzc, khz, kcc;
 int brow, arow, b2, lim, x0, x1, xa, xb, a, disc, sb, rowbase;
-int d1h, d1l, dxa;
+int d1h, d1l, dxa, r_dl;
 char rsh, hazerow, shadrow, sky, bny, pb0, pb1;
 char *p;
 
@@ -121,6 +125,9 @@ main()
     }
 
     /* ---- per-row sphere band: disc >= 0 iff dx^2 <= b2/c - dy^2 - 1 ---- */
+    m_a = dy;
+    m_b = 0 + LGT_Y;
+    r_dl = fmul() + LGT_Z;             /* row part of D.L: dy*ly + lz */
     m_a = dy;
     m_b = 0 + SPH_CY;
     brow = fmul() + SPH_CZ;
@@ -259,32 +266,187 @@ main()
             ++x;
           }
         } else {
-          /* plain floor: one byte = 8 pixels */
-          for (i = 8; i; --i) {
-            if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
-            if (shadrow) {
-              if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+          /* plain floor: one byte = 8 pixels, unrolled. x stays
+           * byte-aligned here, so (x & 15) = (x & 8) + k for pixel k:
+           * the bnoise base (i reused) and the x advance hoist out. */
+          i = bny + (x & 8);
+          if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
+          if (shadrow) {
+            if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+              m_a = hxhi;
+              m_b = 0 + LGT_X;
+              sb = fmul() + khz;
+              if (sb < 0) {
+                m_a = sb;
+                m_b = sb;
+                sb = fmul();           /* sb reused: now sb^2 */
                 m_a = hxhi;
-                m_b = 0 + LGT_X;
-                sb = fmul() + khz;
-                if (sb < 0) {
-                  m_a = sb;
-                  m_b = sb;
-                  sb = fmul();         /* sb reused: now sb^2 */
-                  m_a = hxhi;
-                  m_b = hxhi;
-                  if (sb - (fmul() + kcc) > 0)
-                    sh = sh >> 2;
-                }
+                m_b = hxhi;
+                if (sb - (fmul() + kcc) > 0)
+                  sh = sh >> 2;
               }
             }
-            bits = bits + bits;
-            if (sh > bnoise[bny + (x & 15)]) bits = bits + 1;
-            hxlo = hxlo + dlo;
-            if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
-            hxhi = hxhi + dhi;
-            ++x;
           }
+          bits = bits + bits;
+          if (sh > bnoise[i]) bits = bits + 1;
+          hxlo = hxlo + dlo;
+          if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
+          hxhi = hxhi + dhi;
+          if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
+          if (shadrow) {
+            if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+              m_a = hxhi;
+              m_b = 0 + LGT_X;
+              sb = fmul() + khz;
+              if (sb < 0) {
+                m_a = sb;
+                m_b = sb;
+                sb = fmul();
+                m_a = hxhi;
+                m_b = hxhi;
+                if (sb - (fmul() + kcc) > 0)
+                  sh = sh >> 2;
+              }
+            }
+          }
+          bits = bits + bits;
+          if (sh > bnoise[i + 1]) bits = bits + 1;
+          hxlo = hxlo + dlo;
+          if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
+          hxhi = hxhi + dhi;
+          if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
+          if (shadrow) {
+            if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+              m_a = hxhi;
+              m_b = 0 + LGT_X;
+              sb = fmul() + khz;
+              if (sb < 0) {
+                m_a = sb;
+                m_b = sb;
+                sb = fmul();
+                m_a = hxhi;
+                m_b = hxhi;
+                if (sb - (fmul() + kcc) > 0)
+                  sh = sh >> 2;
+              }
+            }
+          }
+          bits = bits + bits;
+          if (sh > bnoise[i + 2]) bits = bits + 1;
+          hxlo = hxlo + dlo;
+          if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
+          hxhi = hxhi + dhi;
+          if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
+          if (shadrow) {
+            if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+              m_a = hxhi;
+              m_b = 0 + LGT_X;
+              sb = fmul() + khz;
+              if (sb < 0) {
+                m_a = sb;
+                m_b = sb;
+                sb = fmul();
+                m_a = hxhi;
+                m_b = hxhi;
+                if (sb - (fmul() + kcc) > 0)
+                  sh = sh >> 2;
+              }
+            }
+          }
+          bits = bits + bits;
+          if (sh > bnoise[i + 3]) bits = bits + 1;
+          hxlo = hxlo + dlo;
+          if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
+          hxhi = hxhi + dhi;
+          if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
+          if (shadrow) {
+            if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+              m_a = hxhi;
+              m_b = 0 + LGT_X;
+              sb = fmul() + khz;
+              if (sb < 0) {
+                m_a = sb;
+                m_b = sb;
+                sb = fmul();
+                m_a = hxhi;
+                m_b = hxhi;
+                if (sb - (fmul() + kcc) > 0)
+                  sh = sh >> 2;
+              }
+            }
+          }
+          bits = bits + bits;
+          if (sh > bnoise[i + 4]) bits = bits + 1;
+          hxlo = hxlo + dlo;
+          if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
+          hxhi = hxhi + dhi;
+          if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
+          if (shadrow) {
+            if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+              m_a = hxhi;
+              m_b = 0 + LGT_X;
+              sb = fmul() + khz;
+              if (sb < 0) {
+                m_a = sb;
+                m_b = sb;
+                sb = fmul();
+                m_a = hxhi;
+                m_b = hxhi;
+                if (sb - (fmul() + kcc) > 0)
+                  sh = sh >> 2;
+              }
+            }
+          }
+          bits = bits + bits;
+          if (sh > bnoise[i + 5]) bits = bits + 1;
+          hxlo = hxlo + dlo;
+          if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
+          hxhi = hxhi + dhi;
+          if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
+          if (shadrow) {
+            if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+              m_a = hxhi;
+              m_b = 0 + LGT_X;
+              sb = fmul() + khz;
+              if (sb < 0) {
+                m_a = sb;
+                m_b = sb;
+                sb = fmul();
+                m_a = hxhi;
+                m_b = hxhi;
+                if (sb - (fmul() + kcc) > 0)
+                  sh = sh >> 2;
+              }
+            }
+          }
+          bits = bits + bits;
+          if (sh > bnoise[i + 6]) bits = bits + 1;
+          hxlo = hxlo + dlo;
+          if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
+          hxhi = hxhi + dhi;
+          if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
+          if (shadrow) {
+            if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
+              m_a = hxhi;
+              m_b = 0 + LGT_X;
+              sb = fmul() + khz;
+              if (sb < 0) {
+                m_a = sb;
+                m_b = sb;
+                sb = fmul();
+                m_a = hxhi;
+                m_b = hxhi;
+                if (sb - (fmul() + kcc) > 0)
+                  sh = sh >> 2;
+              }
+            }
+          }
+          bits = bits + bits;
+          if (sh > bnoise[i + 7]) bits = bits + 1;
+          hxlo = hxlo + dlo;
+          if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
+          hxhi = hxhi + dhi;
+          x = x + 8;
           *p = bits;
           p = p + 8;
           bits = 0;

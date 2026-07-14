@@ -6,8 +6,11 @@
  * Sphere (half-b quadratic):
  *   a = D.D,  b = D.C,  c = |C|^2 - r^2 (SPH_C2R)
  *   disc = b*b - a*c ; hit if disc >= 0 ; t = (b - sqrt)/a
- * Hit: P = t*D, N = P - C (unit, r = 1), DIFS = 12*max(0, N.L),
- *      R = D - 2(D.N)N, sample floor/sky along R from P,
+ * Hit: N = t*D - C (unit, r = 1) is never materialized - with a and b
+ *      in hand: g = D.N = t*a - b, N.L = t*(D.L) - C.L, and
+ *      R = D - 2g*N = k*D + 2g*C, k = 1 - 2g*t (Cy, Cz terms are shifts).
+ *      DIFS = 12*max(0, N.L); sample floor/sky along R from P = t*D
+ *      (P computed only when R points floor-ward - sky needs no origin);
  *      shade = sample/2 + DIFS + 1 (half mirror + diffuse)
  * Miss: sample floor/sky along D from the origin.
  * Floor: t2 = (FLOOR_Y - oy)/vy, checker = parity of floor(x)+floor(z);
@@ -25,7 +28,7 @@
  * pool is already full). Prefixed: the unity build is one namespace. */
 int r_t2, r_hx, r_hz, r_hzc, r_sb, r_sc;
 char r_shade;
-int t_t, t_nx, t_ny, t_nz, t_ndl, t_dn, t_rx, t_ry, t_rz;
+int t_t, t_nx, t_ny, t_ndl, t_g, t_k, t_dl, t_rx, t_ry, t_rz;
 char t_difs, t_s;
 
 /* fixmath calling convention: operands go directly into the zp cells
@@ -91,40 +94,43 @@ int dx, dy, a, b, disc;
   m_b = a;
   t_t = fdiv();
   if (t_t <= 0) { t_s = 255; return t_s; }   /* fall back to floor/sky */
-  m_a = t_t;                     /* P = t*D; N = P - C (Cx = 0) */
-  m_b = dx;
-  t_nx = fmul();
-  m_a = t_t;
-  m_b = dy;
-  t_ny = fmul() - SPH_CY;
-  t_nz = t_t - SPH_CZ;
-  m_a = t_nx;
+  /* N = t*D - C never materializes: with a = D.D, b = D.C in hand,
+   * g = D.N = t*a - b, N.L = t*(D.L) - C.L (D.L's dy*ly + lz part is
+   * per-row: r_dl from main), and R = D - 2g*N = k*D + 2g*C with
+   * k = 1 - 2g*t - the C terms are shifts (Cx = 0, Cy = 0.5, Cz = 2). */
+  m_a = dx;
   m_b = LGT_X;
-  t_ndl = fmul();
-  m_a = t_ny;
-  m_b = 0 + LGT_Y;
-  t_ndl = t_ndl + fmul();
-  m_a = t_nz;
-  m_b = LGT_Z;
-  t_ndl = t_ndl + fmul();
+  t_dl = fmul() + r_dl;          /* D.L */
+  m_a = t_t;
+  m_b = t_dl;
+  t_ndl = fmul() - C_DOT_L;      /* N.L */
   t_difs = 0;
   if (t_ndl > 0) t_difs = (12 * t_ndl) >> 8;
-  m_a = dx;
-  m_b = t_nx;
-  t_dn = fmul();
-  m_a = dy;
-  m_b = t_ny;
-  t_dn = (t_dn + fmul() + t_nz) << 1;
-  m_a = t_dn;
-  m_b = t_nx;
-  t_rx = dx - fmul();
-  m_a = t_dn;
-  m_b = t_ny;
-  t_ry = dy - fmul();
-  m_a = t_dn;
-  m_b = t_nz;
-  t_rz = 256 - fmul();
-  t_s = sample_ray(t_nx, t_ny + SPH_CY, t_t, t_rx, t_ry, t_rz);
+  m_a = t_t;
+  m_b = a;
+  t_g = fmul() - b;              /* D.N (< 0 at a front hit) */
+  m_a = t_g;
+  m_b = t_t;
+  t_k = 256 - (fmul() << 1);     /* 1 - 2g*t */
+  m_a = t_k;
+  m_b = dx;
+  t_rx = fmul();
+  m_a = t_k;
+  m_b = dy;
+  t_ry = fmul() + t_g;           /* + 2g*Cy = g */
+  t_rz = t_k + (t_g << 2);       /* k*dz (dz = 1) + 2g*Cz */
+  if (t_ry >= 0) {               /* sky-bound: P = t*D never needed */
+    t_s = 1 + (t_ry >> 4);
+    if (t_s > SKY_MAX) t_s = SKY_MAX;
+  } else {
+    m_a = t_t;
+    m_b = dx;
+    t_nx = fmul();               /* P = t*D: reflection origin */
+    m_a = t_t;
+    m_b = dy;
+    t_ny = fmul();
+    t_s = sample_ray(t_nx, t_ny, t_t, t_rx, t_ry, t_rz);
+  }
   t_s = (t_s >> 1) + t_difs + 1;
   if (t_s > 15) t_s = 15;
   return t_s;

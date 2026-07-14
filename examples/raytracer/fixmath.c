@@ -290,22 +290,22 @@ int fdiv()      /* operands in m_a, m_b */
     sta m_u             ; dividend low byte (the << 8)
     sta m_t             ; remainder = 0
     sta m_t+1
-    ldx #24
+    ldx #3              ; 3 passes x 8 unrolled steps = 24
   dloop:
-    asl m_u             ; dividend/quotient left; top bit -> remainder
+    asl m_u             ; --- step 1 ---
     rol m_a
     rol m_a+1
     rol m_t
     rol m_t+1
-    bcs dforce          ; 17th remainder bit: subtract always fits
+    bcs d1f
     lda m_t+1
     cmp m_b+1
-    bcc dnext
-    bne dforce
+    bcc d1n
+    bne d1f
     lda m_t
     cmp m_b
-    bcc dnext
-  dforce:
+    bcc d1n
+  d1f:
     lda m_t
     sec
     sbc m_b
@@ -313,10 +313,173 @@ int fdiv()      /* operands in m_a, m_b */
     lda m_t+1
     sbc m_b+1
     sta m_t+1
-    inc m_u             ; quotient bit
-  dnext:
-    dex
-    bne dloop
+    inc m_u
+  d1n:
+    asl m_u             ; --- step 2 ---
+    rol m_a
+    rol m_a+1
+    rol m_t
+    rol m_t+1
+    bcs d2f
+    lda m_t+1
+    cmp m_b+1
+    bcc d2n
+    bne d2f
+    lda m_t
+    cmp m_b
+    bcc d2n
+  d2f:
+    lda m_t
+    sec
+    sbc m_b
+    sta m_t
+    lda m_t+1
+    sbc m_b+1
+    sta m_t+1
+    inc m_u
+  d2n:
+    asl m_u             ; --- step 3 ---
+    rol m_a
+    rol m_a+1
+    rol m_t
+    rol m_t+1
+    bcs d3f
+    lda m_t+1
+    cmp m_b+1
+    bcc d3n
+    bne d3f
+    lda m_t
+    cmp m_b
+    bcc d3n
+  d3f:
+    lda m_t
+    sec
+    sbc m_b
+    sta m_t
+    lda m_t+1
+    sbc m_b+1
+    sta m_t+1
+    inc m_u
+  d3n:
+    asl m_u             ; --- step 4 ---
+    rol m_a
+    rol m_a+1
+    rol m_t
+    rol m_t+1
+    bcs d4f
+    lda m_t+1
+    cmp m_b+1
+    bcc d4n
+    bne d4f
+    lda m_t
+    cmp m_b
+    bcc d4n
+  d4f:
+    lda m_t
+    sec
+    sbc m_b
+    sta m_t
+    lda m_t+1
+    sbc m_b+1
+    sta m_t+1
+    inc m_u
+  d4n:
+    asl m_u             ; --- step 5 ---
+    rol m_a
+    rol m_a+1
+    rol m_t
+    rol m_t+1
+    bcs d5f
+    lda m_t+1
+    cmp m_b+1
+    bcc d5n
+    bne d5f
+    lda m_t
+    cmp m_b
+    bcc d5n
+  d5f:
+    lda m_t
+    sec
+    sbc m_b
+    sta m_t
+    lda m_t+1
+    sbc m_b+1
+    sta m_t+1
+    inc m_u
+  d5n:
+    asl m_u             ; --- step 6 ---
+    rol m_a
+    rol m_a+1
+    rol m_t
+    rol m_t+1
+    bcs d6f
+    lda m_t+1
+    cmp m_b+1
+    bcc d6n
+    bne d6f
+    lda m_t
+    cmp m_b
+    bcc d6n
+  d6f:
+    lda m_t
+    sec
+    sbc m_b
+    sta m_t
+    lda m_t+1
+    sbc m_b+1
+    sta m_t+1
+    inc m_u
+  d6n:
+    asl m_u             ; --- step 7 ---
+    rol m_a
+    rol m_a+1
+    rol m_t
+    rol m_t+1
+    bcs d7f
+    lda m_t+1
+    cmp m_b+1
+    bcc d7n
+    bne d7f
+    lda m_t
+    cmp m_b
+    bcc d7n
+  d7f:
+    lda m_t
+    sec
+    sbc m_b
+    sta m_t
+    lda m_t+1
+    sbc m_b+1
+    sta m_t+1
+    inc m_u
+  d7n:
+    asl m_u             ; --- step 8 ---
+    rol m_a
+    rol m_a+1
+    rol m_t
+    rol m_t+1
+    bcs d8f
+    lda m_t+1
+    cmp m_b+1
+    bcc d8n
+    bne d8f
+    lda m_t
+    cmp m_b
+    bcc d8n
+  d8f:
+    lda m_t
+    sec
+    sbc m_b
+    sta m_t
+    lda m_t+1
+    sbc m_b+1
+    sta m_t+1
+    inc m_u
+  d8n:
+    dex                 ; next pass (bne is out of range: ~340 bytes)
+    beq dend
+    jmp dloop
+  dend:
     lda m_a+1           ; Q bits 16-23: q = Q >> 8 > 126 -> saturate
     bne dsat
     lda m_a             ; Q bits 8-15

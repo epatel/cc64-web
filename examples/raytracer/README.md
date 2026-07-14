@@ -36,8 +36,11 @@ PRG runs in Web64 to a complete correct frame in ~5 real minutes —
 matching the harness's 5.1-minute prediction. Note web64's `?warp=true`
 only warps boot+load; the render itself runs at 1x.
 
-Verified pixel-identical against a JS model of the algorithm by executing
-the compiled PRG on `tools/run6502.mjs`.
+Originally verified pixel-identical against a JS model of the algorithm by
+executing the compiled PRG on `tools/run6502.mjs`. The later
+reflection-algebra rework takes different fixed-point rounding paths and
+flips 212 of 64,000 pixels (0.33%, scattered dither-level changes on the
+sphere and its reflection).
 
 ## Performance log (`node tools/bench6502.mjs raytracer.prg`)
 
@@ -53,10 +56,12 @@ the compiled PRG on `tools/run6502.mjs`.
 | render state to globals; hottest 5 in zp (pool full) | 0.978 G | 16.5 min |
 | `__asm` quarter-square fmul (self-modifying, as the original) | 0.411 G | 7.0 min |
 | `__asm` fdiv (24-step long division) + isqrt (inline shifts) | 0.301 G | 5.1 min |
-| fixmath operands straight into the zp cells (no parameters) | **0.273 G** (measured) | **4.6 min** |
+| fixmath operands straight into the zp cells (no parameters) | 0.273 G | 4.6 min |
+| reflection algebra: g = t*a - b, R = k*D + 2g*C — N never built | 0.251 G | 4.3 min |
+| unrolled: fdiv steps x8, floor byte loop x8, init_video clears x8 | **0.244 G** (measured) | **4.1 min** |
 
 **The asm original measures 387 M cycles = 6.6 min at 1x** on the same
-harness (full frame verified) — this version now **beats it by 29%**:
+harness (full frame verified) — this version now **beats it by 37%**:
 same fixed-point kernels (fmul/umul16 ported near-verbatim into cc64-web
 `__asm` blocks — operand bytes patched into the lookup instructions,
 the |a-b| index by the complement trick, byte tables at $c800-$cfff
@@ -68,11 +73,21 @@ round before it exhausted the $57..$70 pool: fmul's cells double as
 fdiv/isqrt scratch (leaf functions, never live at once), fsqrt's Newton
 temp survives its fdiv call so it owns a cell, and main's per-pixel
 accumulators (x, hxhi, hxlo, vh, vl, sh, bits) fill the rest.
-The final row drops cc64's parameter passing for the fixmath leaves
+The zp-operands row drops cc64's parameter passing for the fixmath leaves
 entirely: callers store the operands into m_a/m_b themselves and the
 functions take no arguments (~82 cycles saved per 2-arg call — stack
 push, (frame),y reload and zp store all gone; cc64 has no function-like
 macros, so the call sites sequence the stores explicitly).
+The reflection row reworks the hit path algebraically (trace.c header):
+with a = D.D and b = D.C already in hand, D.N = t*a - b, N.L =
+t*(D.L) - C.L (C.L is the compile-time C_DOT_L, D.L's dy part is
+per-row) and R = k*D + 2(D.N)*C with k = 1 - 2(D.N)t (the C terms are
+shifts) — 6-8 fmuls per hit instead of 10, and sky-bound reflections
+skip P = t*D and the sample_ray call entirely (16,658 -> 8,143 calls).
+The unroll row is mechanical: fdiv's 24 division steps as 3 passes of 8,
+the plain-floor pixel loop as 8 copies (letting the bnoise index and the
+x advance hoist out), init_video's clears x8 — +6 KB of PRG for -7.6 M
+cycles.
 Incidentally 6.6 min at 1x vs the author's "~2:20 under warp" implies a
 ~2.8x warp — matching web64's observed warp factor.
 
@@ -82,19 +97,20 @@ rescaled from instruction counts, the later ones are cycle-exact
 (`make profile SRC=examples/raytracer`):
 
 ```
-fmul        81.7M  29.9%   303,110 calls    270 cyc/call
-fdiv        56.3M  20.6%    41,854 calls  1,345 cyc/call
-main        53.4M  19.6%
-trace_sphere 33.7M  12.4%   16,658 calls  2,024 cyc/call
-sample_ray  11.7M   4.3%    16,658 calls    705 cyc/call
+fmul        67.3M  27.6%   253,056 calls    266 cyc/call
+fdiv        52.2M  21.4%    41,882 calls  1,246 cyc/call
+main        50.7M  20.8%
+trace_sphere 26.6M  10.9%   16,658 calls  1,599 cyc/call
+sample_ray  10.5M   4.3%     8,143 calls  1,295 cyc/call
 ```
 
-What's left is compiled-C glue: trace_sphere/sample_ray's 2,024/705
+What's left is compiled-C glue: trace_sphere/sample_ray's 1,599/1,295
 cyc/call are mostly their own argument passing and 16-bit temp shuffling
-around ~13 fmul calls per sphere pixel. Further candidates: fewer fmuls
-per hit (algebraic rework of the reflection), a squares-only fsq()
-(2 lookups instead of 4), fdiv's leading-zero skip, incremental
-shadow-ray terms (linear in hx).
+around 6-8 fmul calls per sphere pixel. Further candidates: a
+squares-only fsq() (2 lookups instead of 4) for the self-multiplies,
+fdiv's leading-zero skip, incremental shadow-ray terms (linear in hx),
+and passing trace_sphere/sample_ray arguments through globals the way
+fixmath does.
 
 ## cc64 dialect traps found while porting (the hard way)
 

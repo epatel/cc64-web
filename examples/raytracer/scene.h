@@ -24,6 +24,9 @@
 #define CC_SH   0x0140
 #define SHADOW_RAW 0x0600
 
+/* C.L = SPH_CY*LGT_Y + SPH_CZ*LGT_Z = 0x68 - 0xd0 (N.L = t*(D.L) - C.L) */
+#define C_DOT_L 0xff98
+
 /* floor and shading */
 #define FLOOR_Y 0xff00
 #define SHD_CHK_HI 13
