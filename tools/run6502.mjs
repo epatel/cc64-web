@@ -265,8 +265,9 @@ export function step(c) {
   c.instructions++;
 }
 
-// Load a PRG, find the BASIC stub's SYS target, run.
-export function run(prg, { maxSteps = 2e9, trapAddr = null, onTrap = null } = {}) {
+// Load a PRG into fresh RAM, point the CPU at the BASIC stub's SYS target,
+// and arm the sentinel return address (RTS from the entry lands on $ffff).
+export function loadPrg(prg) {
   const mem = new Uint8Array(0x10000);
   const load = prg[0] | (prg[1] << 8);
   mem.set(prg.subarray(2), load);
@@ -276,8 +277,13 @@ export function run(prg, { maxSteps = 2e9, trapAddr = null, onTrap = null } = {}
   if (!m) throw new Error('no SYS in BASIC stub');
   const c = makeCpu(mem);
   c.pc = Number(m[1]);
-  // sentinel return address: RTS from the entry ends the run
   push(c, 0xff); push(c, 0xfe);   // returns to $ffff
+  return { c, mem };
+}
+
+// Load a PRG, find the BASIC stub's SYS target, run.
+export function run(prg, { maxSteps = 2e9, trapAddr = null, onTrap = null } = {}) {
+  const { c, mem } = loadPrg(prg);
   let lastWrites = 0, lastWriteStep = 0;
   for (let i = 0; i < maxSteps; i++) {
     if (c.pc === 0xffff) return { c, mem, done: true, steps: i, cycles: c.cycles };

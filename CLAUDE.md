@@ -13,6 +13,7 @@ Full architecture, Forth→JS port map, and status: @docs/PLAN.md
 - `npm test` — full suite; includes the differential test (`test/compile.test.mjs`)
 - `npm run web` — dev server at http://localhost:8064/web/ (the IDE page)
 - `CC64_REPO=<cc64 checkout> tools/oracle/cc64-compile.sh f.c f.prg` — reference compile via real cc64 in VICE
+- `make profile SRC=<f.c | project dir>` — per-function cycle profile on the 6502 harness (runtime helpers like `$mult` resolved by name; use before optimizing anything)
 
 ## The prime directive: byte-identity
 

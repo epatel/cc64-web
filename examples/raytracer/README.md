@@ -58,13 +58,20 @@ Incidentally 6.6 min at 1x vs the author's "~2:20 under warp" implies a
 ~2.8x warp — matching web64's observed warp factor.
 
 cc64-generated code averages ~2.85 cycles/instruction; the first rows are
-rescaled from instruction counts, the last two are cycle-exact
-(`make bench PRG=...`). The second-difference step also measured fmul's
-real cost: ~1700 cycles/call — the remaining hot spot is the ~10 fmul
-calls per sphere-hit pixel (trace_sphere + sample_ray), ~65% of the
-frame. Closing the 2.9x gap to the asm would take eliminating most of
-those calls (algebraic rework), not just cheapening them: even a free
-fmul only buys ~2.8x.
+rescaled from instruction counts, the later ones are cycle-exact
+(`make bench PRG=...`). Where the time goes now
+(`make profile SRC=examples/raytracer`):
+
+```
+fmul       662.3M  67.7%   303,110 calls  2,185 cyc/call
+fdiv       118.0M  12.1%    41,854 calls  2,819 cyc/call
+main        56.8M   5.8%
+trace_sphere 39.1M  4.0%    16,658 calls  2,349 cyc/call
+```
+
+Closing the remaining 2.5x gap to the asm means eliminating fmul
+*calls* (algebraic rework), not cheapening them further: even a free
+fmul only buys ~3x.
 
 Further candidates: fewer fmuls per hit (algebraic rework of the
 reflection), a squares-only fsq() (3 lookups instead of 4 products),

@@ -36,7 +36,7 @@ export function compile({ source, fileName = 'main.c', fs = new Map() }) {
   const cg = new Codegen({ vasm, symtab: fe.symtab, statics, layout, error });
   const parser = new Parser({ scanner: fe.scanner, symtab: fe.symtab, cg, vasm, statics, error });
 
-  const { mainAddr, patches } = parser.compileProgram();
+  const { mainAddr, patches, functions } = parser.compileProgram();
 
   // end-of-code
   const staticsFirst = statics.addr;
@@ -46,6 +46,7 @@ export function compile({ source, fileName = 'main.c', fs = new Map() }) {
     mainAddr,
     codeBytes: code.bytes.length,
     staticsBytes: statics.bytes.length,
+    functions,                   // {name, addr} in code order (profiler)
   };
   if (diagnostics.length) return { prg: null, ...status };
   if (!mainAddr) {

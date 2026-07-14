@@ -42,6 +42,7 @@ export class Parser {
     this.switchState = 0;        // 0: outside, -1: in switch, addr: default seen
     this.patches = [];           // protos2patch for the linker
     this.protosResolve = new Map(); // sym -> stub jmp operand address
+    this.functions = [];         // {name, addr} per defined function (profiler)
 
     this.functionDefined = false;
     this.isFirst = true;         // (1st
@@ -790,6 +791,7 @@ export class Parser {
     const sym = this.findPutGlobal(id, { v: label, t });
     sym.value = label;
     sym.type = t;
+    this.functions.push({ name: id, addr: label });
     this.declareParameters();
     this.expectChar('{');
     this.compound();
@@ -854,6 +856,6 @@ export class Parser {
       if (!functionQ(main.type)) throw new CompileFatal('main is not a function');
       mainAddr = main.value;
     }
-    return { mainAddr, patches: this.patches };
+    return { mainAddr, patches: this.patches, functions: this.functions };
   }
 }
