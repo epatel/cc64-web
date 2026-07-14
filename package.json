@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "test": "node test/run6502.test.mjs && node test/scanner.test.mjs && node test/frontend.test.mjs && node test/amalgamate.test.mjs && node test/vasm.test.mjs && node test/linker.test.mjs && node test/compile.test.mjs && node test/d64.test.mjs && node test/zeropage.test.mjs && node test/profile.test.mjs",
+    "test": "node test/run6502.test.mjs && node test/scanner.test.mjs && node test/frontend.test.mjs && node test/amalgamate.test.mjs && node test/vasm.test.mjs && node test/linker.test.mjs && node test/compile.test.mjs && node test/d64.test.mjs && node test/zeropage.test.mjs && node test/asmblock.test.mjs && node test/profile.test.mjs",
     "test:oracle": "bash tools/oracle/reference-compile.sh",
     "web": "node tools/serve.mjs"
   },

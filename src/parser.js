@@ -9,6 +9,7 @@
 //   protos2patch list ({addr, target}) once the function is defined
 
 import { T } from './scanner.js';
+import { assembleBlock } from './asmblock.js';
 import {
   T_INT, T_LVALUE, T_POINTER, T_FUNCTION, T_OFFSET, T_FASTCALL, T_EXTERN,
   T_PROTO, T_CONST, TYPE_DEFAULT, TYPE_GLOBAL, TYPE_LOCAL, DECL_MASK,
@@ -17,7 +18,7 @@ import {
 
 export class CompileFatal extends Error {}
 
-// Pool for the 'zeropage' storage class (cc64-web extension): $57..$70 is
+// Pool for the '__zeropage' storage class (cc64-web extension): $57..$70 is
 // the BASIC numeric work area + FAC — unused as long as the program only
 // calls the KERNAL (cc64's runtime does), and safe to trash even when
 // returning to BASIC afterwards. cc64's runtime itself owns $fb-$fe.
@@ -47,7 +48,7 @@ export class Parser {
     this.functionDefined = false;
     this.isFirst = true;         // (1st
     this.externFlag = false;
-    this.zpFlag = false;         // 'zeropage' storage class (cc64-web extension)
+    this.zpFlag = false;         // '__zeropage' storage class (cc64-web extension)
     this.zpNext = ZP_POOL_FIRST; // next free zero-page pool address
     this.nObj = 1;               // #/obj
     this.dimd = false;           // []dim'd
@@ -421,6 +422,7 @@ export class Parser {
       while: () => this.whileStmt(), for: () => this.forStmt(),
       case: () => this.caseStmt(), default: () => this.defaultStmt(),
       switch: () => this.switchStmt(), return: () => this.returnStmt(),
+      __asm: () => this.asmStmt(),      // cc64-web extension
     };
     const w = this.tw();
     if (w.type === T.KEYWORD && STMTS[w.kw]) { this.accept(); STMTS[w.kw](); return true; }
@@ -436,6 +438,20 @@ export class Parser {
 
   statement() {
     if (!this.statementQ()) this.error(`statement expected (line ${this.tw().line})`);
+  }
+
+  asmStmt() {                       // __asm { raw 6502 } (cc64-web extension)
+    const w = this.tw();
+    if (!(w.type === T.CHAR && w.ch === '{')) { this.error('__asm: { expected'); return; }
+    const lines = this.s.rawBlockLines();   // consumes through the closing }
+    assembleBlock(lines, {
+      code: this.v.code,
+      resolve: (name) => {
+        const sym = this.symtab.findglobal(name);
+        return sym ? (sym.value & 0xffff) : null;
+      },
+      error: (m) => this.error(m),
+    });
   }
 
   // ---- type specifiers ----
@@ -457,7 +473,7 @@ export class Parser {
     const e = this.externQ(t);
     if (e.f) return e;
     if (this.comesKw('static')) return { t: t & ~T_EXTERN, f: true };
-    if (this.comesKw('zeropage')) {         // cc64-web extension (not in cc64)
+    if (this.comesKw('__zeropage')) {         // cc64-web extension (not in cc64)
       this.zpFlag = true;
       return { t: t & ~T_EXTERN, f: true };
     }
@@ -696,11 +712,11 @@ export class Parser {
     return { v: this.cg.dynAllot(elemSize(t) * this.nObj), t };
   }
 
-  createZp(t) {                            // 'zeropage' storage class
+  createZp(t) {                            // '__zeropage' storage class
     const v = this.zpNext;
     const size = elemSize(t) * this.nObj;
     if (v + size > ZP_POOL_LAST + 1) {
-      this.error(`zeropage: pool full ($${ZP_POOL_FIRST.toString(16)}..$${ZP_POOL_LAST.toString(16)}, ${ZP_POOL_LAST + 1 - ZP_POOL_FIRST} bytes)`);
+      this.error(`__zeropage: pool full ($${ZP_POOL_FIRST.toString(16)}..$${ZP_POOL_LAST.toString(16)}, ${ZP_POOL_LAST + 1 - ZP_POOL_FIRST} bytes)`);
       return { v: this.statics.addr, t };  // keep going with a dummy
     }
     this.zpNext += size;
@@ -723,7 +739,7 @@ export class Parser {
       }
     } else if (this.zpFlag) {                       // zeropage (cc64-web ext.)
       if (this.comesOp('='))
-        this.error('zeropage: no initializers (not part of the init stream)');
+        this.error('__zeropage: no initializers (not part of the init stream)');
       if (arrayQ(t)) t = this.dimArray(t);
       obj = this.createZp(t);
     } else {                                        // global/static
@@ -813,7 +829,7 @@ export class Parser {
 
   definitionDecl(id, t) {                   // definition' (top level)
     if (this.comesOp('*=')) { this.defineExtern(id, t); return; }
-    if (this.zpFlag && functionQ(t)) this.error('zeropage: variables only');
+    if (this.zpFlag && functionQ(t)) this.error('__zeropage: variables only');
     if (functionQ(t)) this.defineFunction(id, t);
     else {
       this.putSymbolFn = (n) => this.symtab.putglobal(n);

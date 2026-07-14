@@ -69,13 +69,13 @@ int init_video()
 /* Render state at file scope: cc64 compiles globals to absolute addressing,
  * locals to (frame),y indirection at about twice the cost - and this loop
  * runs 64000 times. The per-pixel hottest go in the zero page (cc64-web
- * 'zeropage' extension), filling the $57..$70 pool to the last byte. */
-zeropage int x, hxhi, hxlo;
-zeropage char sh, bits;
+ * '__zeropage' extension), filling the $57..$70 pool to the last byte. */
+__zeropage int x, hxhi, hxlo, vh, vl;
+__zeropage char sh, bits;
 int y, dy, i;
 int t2, dhi, dlo, z256, hzc, khz, kcc;
 int brow, arow, b2, lim, x0, x1, xa, xb, a, disc, sb, rowbase;
-int vh, vl, d1h, d1l, dxa;
+int d1h, d1l, dxa;
 char rsh, hazerow, shadrow, sky, bny, pb0, pb1;
 char *p;
 

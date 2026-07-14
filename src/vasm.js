@@ -35,6 +35,11 @@ export class CodeBuffer {
     this.bytes[off] = v & 0xff;
     this.bytes[off + 1] = (v >> 8) & 0xff;
   }
+  bAt(addr, v) {
+    const off = addr - this.origin;
+    if (off < 0 || off >= this.bytes.length) throw new Error(`patch outside code: $${addr.toString(16)}`);
+    this.bytes[off] = v & 0xff;
+  }
   toBytes() { return Uint8Array.from(this.bytes); }
 }
 

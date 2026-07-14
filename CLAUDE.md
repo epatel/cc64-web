@@ -44,8 +44,11 @@ oracle.
 - `stat,` emits hi byte first — the init stream is reversed into memory.
 - Pointer scaling in `+`/`-` applies to the LEFT operand only.
 - Sources without `main()` are library modules — `link-lib` is NOT ported yet.
-- `zeropage int x;` (cc64-web EXTENSION — real cc64 rejects the keyword) puts
-  file-scope vars in zp $57..$70 with zp addressing; no initializers.
-  Addresses < $100 via `*=` also get zp opcodes. Divergences: docs/PLAN.md.
+- cc64-web EXTENSIONS (real cc64 rejects both; details in docs/PLAN.md):
+  `__zeropage int x;` puts file-scope vars in zp $57..$70 with zp addressing
+  (no initializers; `*=` addresses < $100 also get zp opcodes), and
+  `__asm { ... }` embeds raw 6502 in function bodies (src/asmblock.js —
+  local labels, symbol+offset for self-modifying code, auto zp/abs; see
+  the raytracer's fmul: 2,185 → 314 cyc/call).
 - VICE 3.9 flags: `-virtualdev8`, `+drive8truedrive`; segfaults under
   SDL_VIDEODRIVER=dummy on macOS (run with a real window).

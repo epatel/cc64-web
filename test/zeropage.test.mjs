@@ -1,4 +1,4 @@
-// 'zeropage' storage class (cc64-web extension): file-scope vars allocated
+// '__zeropage' storage class (cc64-web extension): file-scope vars allocated
 // in $57..$70, addressed with zero-page opcodes. Verifies allocation order,
 // emitted opcodes, execution semantics on the 6502 harness (incl. the
 // shortened branch offsets around zp inc/dec), and the error paths.
@@ -23,9 +23,9 @@ const HEAD = '#include "rt-c64-08-9f.h"\n';
 // ---- semantics: run a program that exercises zp vars every way ----
 {
   const res = cc(HEAD + `
-zeropage int za, zb;
-zeropage char zc;
-zeropage int zarr[3];
+__zeropage int za, zb;
+__zeropage char zc;
+__zeropage int zarr[3];
 int out0 *= 0x3000;
 int out1 *= 0x3002;
 int out2 *= 0x3004;
@@ -69,7 +69,7 @@ main()
   assert.ok(hasSeq(0x85, 0x57, 0x86, 0x58), 'sta/stx zp for first int');
   assert.ok(hasSeq(0x85, 0x5b), 'sta zp for the char');
   assert.ok(hasSeq(0xe6, 0x57, 0xd0, 0x02, 0xe6, 0x58), 'zp inc with 2-byte branch skip');
-  console.log('ok: zeropage semantics + opcodes (6502 harness)');
+  console.log('ok: __zeropage semantics + opcodes (6502 harness)');
 }
 
 // ---- explicit *= placement below $100 also gets zp addressing ----
@@ -89,19 +89,19 @@ main() { zx = 4242; out0 = zx; }
 
 // ---- error paths ----
 {
-  const res = cc(HEAD + 'zeropage int big[20];\nmain() {}\n');
+  const res = cc(HEAD + '__zeropage int big[20];\nmain() {}\n');
   assert.ok(res.diagnostics.some((d) => /pool full/.test(d)), 'pool overflow diagnosed');
   console.log('ok: pool-full diagnostic');
 }
 {
-  const res = cc(HEAD + 'zeropage int x = 1;\nmain() {}\n');
+  const res = cc(HEAD + '__zeropage int x = 1;\nmain() {}\n');
   assert.ok(res.diagnostics.some((d) => /no initializer/.test(d)), 'initializer rejected');
   console.log('ok: initializer diagnostic');
 }
 {
-  const res = cc(HEAD + 'zeropage int f() { return 1; }\nmain() {}\n');
+  const res = cc(HEAD + '__zeropage int f() { return 1; }\nmain() {}\n');
   assert.ok(res.diagnostics.some((d) => /variables only/.test(d)), 'function rejected');
-  console.log('ok: zeropage function diagnostic');
+  console.log('ok: __zeropage function diagnostic');
 }
 
-console.log('zeropage tests passed');
+console.log('__zeropage tests passed');

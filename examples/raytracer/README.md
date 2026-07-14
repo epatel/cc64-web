@@ -42,18 +42,22 @@ the compiled PRG on `tools/run6502.mjs`.
 | table-of-squares fmul, char-pointer byte access | 1.36 G | 23 min |
 | fmul working vars as globals | 1.157 G | 19.6 min |
 | dx^2 by second differences: hit test = one compare | 1.121 G | 19.0 min |
-| fmul working vars `zeropage` (cc64-web extension) | 1.083 G | 18.3 min |
+| fmul working vars `__zeropage` (cc64-web extension) | 1.083 G | 18.3 min |
 | fdiv/isqrt reuse fmul's zp cells (all leaves) | 1.003 G | 17.0 min |
-| render state to globals; hottest 5 in zp (pool full) | **0.978 G** (measured) | **16.5 min** |
+| render state to globals; hottest 5 in zp (pool full) | 0.978 G | 16.5 min |
+| `__asm` quarter-square fmul (self-modifying, as the original) | **0.411 G** (measured) | **7.0 min** |
 
 **The asm original measures 387 M cycles = 6.6 min at 1x** on the same
-harness (full frame verified) — the C version is 2.5x slower: 3.1x the
-instruction count at slightly lower cycles/instruction (2.71 vs 3.37).
-The zeropage round exhausted the $57..$70 pool: fmul's 8 cells double as
-fdiv/isqrt scratch (leaf functions, never live at once), fsqrt's Newton
-temp survives its fdiv call so it owns a cell, and main's per-pixel
-accumulators (x, hxhi, hxlo, sh, bits) take the rest; everything else
-per-pixel is a plain global.
+harness (full frame verified) — the C version is now within **6%** of it.
+The last step ported the original's fmul/umul16 verbatim into a cc64-web
+`__asm` block: operand bytes patched into the lookup instructions
+(self-modifying code), the |a-b| index by the complement trick, byte
+tables at $c800-$cfff behind the bank-3 screen. fmul went from 2,185 to
+314 cycles/call. The `__zeropage` round before it exhausted the $57..$70
+pool: fmul's cells double as fdiv/isqrt scratch (leaf functions, never
+live at once), fsqrt's Newton temp survives its fdiv call so it owns a
+cell, and main's per-pixel accumulators (x, hxhi, hxlo, vh, vl, sh,
+bits) fill the rest.
 Incidentally 6.6 min at 1x vs the author's "~2:20 under warp" implies a
 ~2.8x warp — matching web64's observed warp factor.
 
@@ -63,20 +67,20 @@ rescaled from instruction counts, the later ones are cycle-exact
 (`make profile SRC=examples/raytracer`):
 
 ```
-fmul       662.3M  67.7%   303,110 calls  2,185 cyc/call
-fdiv       118.0M  12.1%    41,854 calls  2,819 cyc/call
-main        56.8M   5.8%
-trace_sphere 39.1M  4.0%    16,658 calls  2,349 cyc/call
+fdiv       118.0M  28.7%    41,854 calls  2,819 cyc/call
+fmul        95.0M  23.1%   303,110 calls    314 cyc/call
+main        56.5M  13.7%
+trace_sphere 39.1M  9.5%    16,658 calls  2,349 cyc/call
+isqrt       27.8M   6.8%    16,782 calls  1,657 cyc/call
 ```
 
-Closing the remaining 2.5x gap to the asm means eliminating fmul
-*calls* (algebraic rework), not cheapening them further: even a free
-fmul only buys ~3x.
+The next bottleneck is fdiv (its 8-step long division runs in compiled
+C, plus two runtime $divmod calls) — an `__asm` port like fmul's would
+be the move if the last 6% ever matters.
 
-Further candidates: fewer fmuls per hit (algebraic rework of the
-reflection), a squares-only fsq() (3 lookups instead of 4 products),
-incremental shadow-ray terms (linear in hx), fdiv/isqrt internals as
-globals.
+Further candidates: `__asm` fdiv/isqrt, fewer fmuls per hit (algebraic
+rework of the reflection), a squares-only fsq() (2 lookups instead of 4),
+incremental shadow-ray terms (linear in hx).
 
 ## cc64 dialect traps found while porting (the hard way)
 
@@ -92,7 +96,7 @@ globals.
   at argument sites. Character literals (`'a'`) are int-typed and safe.
 - **Locals cost ~2x globals**: locals are (frame),y indirection, globals
   are absolute addressing. Hot leaf functions want file-scope globals —
-  or `zeropage` globals (cc64-web extension, $57..$70 pool), which shave
+  or `__zeropage` globals (cc64-web extension, $57..$70 pool), which shave
   another cycle per access. Note the extension does not compile on real
   cc64.
 - **The locals stack starts right after the loaded PRG image** and grows

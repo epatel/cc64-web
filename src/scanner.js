@@ -28,7 +28,7 @@ export const KEYWORDS = [
   'do', 'if', 'for', 'int', 'auto', 'case', 'char', 'else', 'goto', 'break',
   'while', 'extern', 'return', 'static', 'switch', 'default', 'continue',
   'register', '_fastcall',
-  'zeropage',   // cc64-web extension: file-scope vars in the zero page
+  '__zeropage', '__asm',   // cc64-web extensions (zero-page vars, inline asm)
 ];
 
 // operator token values in the original enum order (scanner.fth block 41)
@@ -88,6 +88,29 @@ export class Scanner {
   accept() { this.wordNo++; this.current = this.scan(); return this.current; }
   mark() { return this.wordNo; }
   advanced(mark) { return this.wordNo !== mark; }
+
+  // __asm support: thisword() must be the already-scanned '{'. Returns the
+  // raw source lines up to the first '}' (which closes the block — so no
+  // '}' inside asm comments), then resumes normal tokenizing after it.
+  // Raw lines bypass C tokenization entirely (no PETSCII, no /* */).
+  rawBlockLines() {
+    const lines = [];
+    let rest = this.line.slice(this.col);
+    for (;;) {
+      const idx = rest.indexOf('}');
+      if (idx >= 0) {
+        if (rest.slice(0, idx).trim()) lines.push({ text: rest.slice(0, idx), line: this.lineNo });
+        this.col = this.line.length - rest.length + idx + 1;   // past the '}'
+        this.wordNo++;
+        this.current = this.scan();
+        return lines;
+      }
+      lines.push({ text: rest, line: this.lineNo });
+      if (this.eof) throw new ScanError('unterminated __asm block', this.lineNo);
+      this.nextline();
+      rest = this.line;
+    }
+  }
 
   // ---- scanning ----
   scan() {

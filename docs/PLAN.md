@@ -16,15 +16,25 @@ listed in this file.
 Deliberate divergences (extensions — output is byte-identical unless a
 source uses them):
 
-- **`zeropage` storage class** (cc64-web only; real cc64 rejects the
-  keyword): `zeropage int x;` at file scope allocates the variable from
+- **`__zeropage` storage class** (cc64-web only; real cc64 rejects the
+  keyword): `__zeropage int x;` at file scope allocates the variable from
   $57..$70 (BASIC numeric work area + FAC — free while the program only
   calls the KERNAL, which is all cc64's runtime does), and vasm emits
   zero-page addressing for any data address < $100 — so explicit
   `int x *= 0x02;` placements get zp opcodes too (real cc64 always emits
   absolute). No initializers (zp vars are not part of the reversed init
-  stream); pool overflow and `zeropage` functions are compile errors.
+  stream); pool overflow and `__zeropage` functions are compile errors.
   cc64's runtime itself owns $fb-$fe. See `test/zeropage.test.mjs`.
+- **`__asm { ... }` inline assembly** (cc64-web only): a statement inside
+  function bodies; line-oriented 6502 assembly emitted at the current code
+  address (`src/asmblock.js`). Local labels, `;` comments, `#imm`,
+  auto zp/abs, `(zp),y`, symbol+offset expressions (self-modifying code),
+  `#<`/`#>`, `.byte`/`.word`; identifiers resolve local labels first, then
+  C globals / `#define` constants via the symbol table. The closing `}`
+  also ends the block mid-line; raw lines bypass the C scanner (no
+  PETSCII conversion, no `/* */`). Clobbers A/X/Y/flags — legal at
+  statement level, where cc64 assumes nothing is live.
+  See `test/asmblock.test.mjs` and the raytracer's fmul.
 
 Fidelity rules discovered so far:
 
