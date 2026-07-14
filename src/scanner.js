@@ -90,14 +90,17 @@ export class Scanner {
   advanced(mark) { return this.wordNo !== mark; }
 
   // __asm support: thisword() must be the already-scanned '{'. Returns the
-  // raw source lines up to the first '}' (which closes the block — so no
-  // '}' inside asm comments), then resumes normal tokenizing after it.
-  // Raw lines bypass C tokenization entirely (no PETSCII, no /* */).
+  // raw source lines up to the first '}' outside a ';' comment (text after
+  // ';' belongs to the comment, so "; t = { x }" is fine), then resumes
+  // normal tokenizing after it. Raw lines bypass C tokenization entirely
+  // (no PETSCII, no /* */).
   rawBlockLines() {
     const lines = [];
     let rest = this.line.slice(this.col);
     for (;;) {
-      const idx = rest.indexOf('}');
+      const sc = rest.indexOf(';');
+      let idx = rest.indexOf('}');
+      if (sc >= 0 && idx > sc) idx = -1;
       if (idx >= 0) {
         if (rest.slice(0, idx).trim()) lines.push({ text: rest.slice(0, idx), line: this.lineNo });
         this.col = this.line.length - rest.length + idx + 1;   // past the '}'

@@ -152,5 +152,21 @@ main() { out0 = 7; __asm { inc $3000 } out0 = out0 + 1; }
   assert.strictEqual(mem[0x3000], 9, 'C, asm, C on one line all executed');
   console.log('ok: single-line block');
 }
+{
+  const res = compile({ fileName: 'a.c', fs, source: `#include "rt-c64-08-9f.h"
+int out0 *= 0x3000;
+main()
+{
+  __asm {
+    lda #5          ; braces in comments are fine: if (x) { y = 1; }
+    sta $3000
+  }
+}
+` });
+  assert.deepStrictEqual(res.diagnostics, [], 'brace inside ; comment does not close the block');
+  const { mem } = run(res.prg, { maxSteps: 1e6 });
+  assert.strictEqual(mem[0x3000], 5);
+  console.log('ok: } inside ; comment');
+}
 
 console.log('asmblock tests passed');

@@ -48,24 +48,77 @@ int init_tables()
   }
 }
 
-/* integer square root of n (0..32767).
+/* integer square root of n (0..32767): the binary bit-method, in asm so
+ * the shifts are lsr/ror instead of runtime $shr calls (~67 cycles each).
  * Scratch: m_r = r, m_t = bit, m_u = t, m_a = n */
 int isqrt(n)
 int n;
 {
-  m_r = 0;
-  m_t = 0x4000;
-  while (m_t > n)
-    m_t = m_t >> 2;
   m_a = n;
-  while (m_t != 0) {
-    m_u = m_r + m_t;
-    m_r = m_r >> 1;
-    if (m_a >= m_u) {
-      m_a = m_a - m_u;
-      m_r = m_r + m_t;
-    }
-    m_t = m_t >> 2;
+  __asm {
+    lda #0
+    sta m_r
+    sta m_r+1
+    sta m_t
+    lda #64             ; bit = $4000
+    sta m_t+1
+  salign:               ; while (bit > n) bit >>= 2
+    lda m_t+1
+    cmp m_a+1
+    bcc smain           ; bit_hi < n_hi
+    bne sshift          ; bit_hi > n_hi
+    lda m_t
+    cmp m_a
+    bcc smain
+    beq smain           ; bit == n
+  sshift:
+    lsr m_t+1
+    ror m_t
+    lsr m_t+1
+    ror m_t
+    jmp salign
+  smain:                ; while (bit != 0)
+    lda m_t
+    ora m_t+1
+    beq sdone
+    clc                 ; t = r + bit
+    lda m_r
+    adc m_t
+    sta m_u
+    lda m_r+1
+    adc m_t+1
+    sta m_u+1
+    lsr m_r+1           ; r >>= 1
+    ror m_r
+    lda m_a+1           ; if (n >= t) { n -= t; r += bit }
+    cmp m_u+1
+    bcc snext
+    bne stake
+    lda m_a
+    cmp m_u
+    bcc snext
+  stake:
+    sec
+    lda m_a
+    sbc m_u
+    sta m_a
+    lda m_a+1
+    sbc m_u+1
+    sta m_a+1
+    clc
+    lda m_r
+    adc m_t
+    sta m_r
+    lda m_r+1
+    adc m_t+1
+    sta m_r+1
+  snext:
+    lsr m_t+1           ; bit >>= 2
+    ror m_t
+    lsr m_t+1
+    ror m_t
+    jmp smain
+  sdone:
   }
   return m_r;
 }
@@ -198,36 +251,102 @@ int a, b;
   return m_r;
 }
 
-/* 8.8 / 8.8 -> 8.8, saturating at +/-127.996.
- * Scratch: m_s = neg, m_a = q, m_r = r, m_t = f, m_u = i, m_b = b */
+/* 8.8 / 8.8 -> 8.8, saturating at +/-127.996: the asm original's 24-step
+ * shift-subtract long division Q = (|a| << 8) / |b|, but keeping this
+ * port's stricter saturation (q > 126 -> 32767, sign applied after).
+ * The 24-bit dividend/quotient register is m_u(lo) m_a m_a+1(hi):
+ * quotient bits enter at the bottom as dividend bits leave the top.
+ * Scratch: m_t = remainder, m_s = sign. */
 int fdiv(a, b)
 int a, b;
 {
   if (b == 0) return 32767;
-  m_s = 0;
-  if (a < 0) { a = -a; m_s = 1; }
-  if (b < 0) { b = -b; m_s = 1 - m_s; }
-  m_a = a / b;
-  if (m_a > 126) {
-    m_a = 32767;
-  } else {
-    m_r = a % b;
-    m_b = b;
-    m_t = 0;
-    m_u = 8;
-    while (m_u) {
-      m_r = m_r + m_r;
-      m_t = m_t + m_t;
-      if (m_r >= m_b || m_r < 0) {   /* m_r < 0 catches the 16-bit wrap */
-        m_r = m_r - m_b;
-        m_t = m_t + 1;
-      }
-      m_u = m_u - 1;
-    }
-    m_a = (m_a << 8) + m_t;
+  m_a = a;
+  m_b = b;
+  __asm {
+    lda m_a+1
+    eor m_b+1
+    sta m_s             ; bit 7 = result sign
+    lda m_a+1
+    bpl dapos
+    sec                 ; a = -a
+    lda #0
+    sbc m_a
+    sta m_a
+    lda #0
+    sbc m_a+1
+    sta m_a+1
+  dapos:
+    lda m_b+1
+    bpl dbpos
+    sec                 ; b = -b
+    lda #0
+    sbc m_b
+    sta m_b
+    lda #0
+    sbc m_b+1
+    sta m_b+1
+  dbpos:
+    lda #0
+    sta m_u             ; dividend low byte (the << 8)
+    sta m_t             ; remainder = 0
+    sta m_t+1
+    ldx #24
+  dloop:
+    asl m_u             ; dividend/quotient left; top bit -> remainder
+    rol m_a
+    rol m_a+1
+    rol m_t
+    rol m_t+1
+    bcs dforce          ; 17th remainder bit: subtract always fits
+    lda m_t+1
+    cmp m_b+1
+    bcc dnext
+    bne dforce
+    lda m_t
+    cmp m_b
+    bcc dnext
+  dforce:
+    lda m_t
+    sec
+    sbc m_b
+    sta m_t
+    lda m_t+1
+    sbc m_b+1
+    sta m_t+1
+    inc m_u             ; quotient bit
+  dnext:
+    dex
+    bne dloop
+    lda m_a+1           ; Q bits 16-23: q = Q >> 8 > 126 -> saturate
+    bne dsat
+    lda m_a             ; Q bits 8-15
+    cmp #127
+    bcc dok
+  dsat:
+    lda #255
+    sta m_r
+    lda #127
+    sta m_r+1
+    jmp dsign
+  dok:
+    lda m_u             ; result = Q low 16 bits
+    sta m_r
+    lda m_a
+    sta m_r+1
+  dsign:
+    lda m_s
+    bpl ddone
+    sec                 ; apply the sign (also to the saturated 32767)
+    lda #0
+    sbc m_r
+    sta m_r
+    lda #0
+    sbc m_r+1
+    sta m_r+1
+  ddone:
   }
-  if (m_s) return -m_a;
-  return m_a;
+  return m_r;
 }
 
 /* sqrt of an 8.8 value (>= 0) -> 8.8; isqrt seed + one Newton step.

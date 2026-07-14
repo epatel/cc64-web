@@ -31,10 +31,11 @@ source uses them):
   auto zp/abs, `(zp),y`, symbol+offset expressions (self-modifying code),
   `#<`/`#>`, `.byte`/`.word`; identifiers resolve local labels first, then
   C globals / `#define` constants via the symbol table. The closing `}`
-  also ends the block mid-line; raw lines bypass the C scanner (no
-  PETSCII conversion, no `/* */`). Clobbers A/X/Y/flags — legal at
-  statement level, where cc64 assumes nothing is live.
-  See `test/asmblock.test.mjs` and the raytracer's fmul.
+  also ends the block mid-line (but a `}` after `;` is comment text);
+  raw lines bypass the C scanner (no PETSCII conversion, no `/* */`).
+  Clobbers A/X/Y/flags — legal at statement level, where cc64 assumes
+  nothing is live. See `test/asmblock.test.mjs` and the raytracer's
+  fmul/fdiv/isqrt.
 
 Fidelity rules discovered so far:
 
