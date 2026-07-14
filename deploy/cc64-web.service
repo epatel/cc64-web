@@ -1,0 +1,21 @@
+# rpi6 — install with:
+#   sudo cp deploy/cc64-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now cc64-web
+#
+# Static IDE + in-memory PRG stash (server/cc64web_server.py, python3
+# stdlib, no venv). PRGs live in RAM only and expire after 5 minutes.
+[Unit]
+Description=cc64-web IDE + in-memory PRG stash
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=epatel
+WorkingDirectory=/home/epatel/cc64-web
+Environment=PORT=9007
+ExecStart=/usr/bin/python3 server/cc64web_server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -179,6 +179,7 @@
       <span class="grab">drag to Web64</span>
     </div>
     <div class="row">
+      <button class="act" id="runweb64" disabled hidden>Run in Web64</button>
       <button class="act" id="download" disabled>Download .prg</button>
       <select id="golden" aria-label="Reference PRGs">
         <option value="">reference PRGs…</option>
@@ -511,6 +512,7 @@
     pill.classList.add('ready');
     pill.draggable = true;
     $('download').disabled = false;
+    $('runweb64').disabled = false;
   }
 
   $('golden').onchange = async (e) => {
@@ -524,6 +526,26 @@
   $('download').onclick = () => {
     const a = document.createElement('a');
     a.href = prgUrl; a.download = prgName; a.click();
+  };
+
+  // Web64 handoff — deployed only: the server keeps the PRG in memory for
+  // 5 minutes at a public URL, which web64's ?url= autostart can fetch.
+  fetch('../api/ping').then((r) => {
+    if (r.ok) $('runweb64').hidden = false;
+  }).catch(() => {});
+  $('runweb64').onclick = async () => {
+    if (!prgBytes) return;
+    try {
+      const r = await fetch(`../api/prg?name=${encodeURIComponent(prgName)}`,
+        { method: 'POST', body: prgBytes });
+      if (!r.ok) throw new Error(`upload failed (${r.status})`);
+      const { path, expiresIn } = await r.json();
+      const url = new URL(path, location.href);
+      window.open(`https://web64.nofs.ai/?url=${url}&warp=true`, '_blank');
+      log(`<span class="ok">${esc(prgName)}</span> handed to Web64 — the link expires in ${Math.round(expiresIn / 60)} min.`);
+    } catch (e) {
+      log(`<span class="err">Web64 handoff: ${esc(e.message)}</span>`);
+    }
   };
 
   $('pill').addEventListener('dragstart', (e) => {

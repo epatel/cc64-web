@@ -12,6 +12,10 @@ Full architecture, Forth→JS port map, and status: @docs/PLAN.md
 - `make` — menu of all actions
 - `npm test` — full suite; includes the differential test (`test/compile.test.mjs`)
 - `npm run web` — dev server at http://localhost:8064/web/ (the IDE page)
+- `deploy/deploy.sh` — deploy to https://rpi6.memention.net/cc64-web/ (rsync +
+  systemd unit on :9007 + apache endpoints.d; python-stdlib server keeps
+  compiled PRGs in RAM for 5 min so "Run in Web64" can hand web64.nofs.ai a
+  fetchable `?url=` — which must NOT be url-encoded)
 - `CC64_REPO=<cc64 checkout> tools/oracle/cc64-compile.sh f.c f.prg` — reference compile via real cc64 in VICE
 - `make profile SRC=<f.c | project dir>` — per-function cycle profile on the 6502 harness (runtime helpers like `$mult` resolved by name; use before optimizing anything)
 

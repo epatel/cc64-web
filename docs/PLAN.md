@@ -112,7 +112,13 @@ flowchart LR
    byte-identical to the VICE oracle (`tools/oracle/`).
 6. **Web integration** — worker + small UI: editor → compile → download
    .prg / hand to Web64 IDE import; later a `compilerBackend: "cc64"`
-   proposal for the Web64 author.
+   proposal for the Web64 author. ✅ deployed at
+   https://rpi6.memention.net/cc64-web/ (deploy/): apache endpoints.d →
+   python-stdlib server on :9007 serving the static IDE + an in-memory
+   PRG stash (`POST api/prg` → 5-min URL). The "Run in Web64" button
+   POSTs the compiled PRG and opens `web64.nofs.ai/?url=<prg-url>&warp=true`
+   — the url param must be raw, NOT percent-encoded (verified end-to-end:
+   sieve compiles in-browser, autostarts in web64, prints 1899 PRIMES).
 
 ## Oracle (kept from the earlier bridge work)
 
