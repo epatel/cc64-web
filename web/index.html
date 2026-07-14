@@ -242,6 +242,21 @@
       if (v1) { state.projects['migrated'] = { files: JSON.parse(v1) }; localStorage.removeItem(LS_V1); }
       store();
     }
+    // seed the bundled raytracer example once (deleting it sticks; edits are
+    // never overwritten)
+    if (!(state.seeded ??= {}).raytracer && !state.projects.raytracer) {
+      try {
+        const r = await fetch('../examples/raytracer/raytracer.cc64proj.json');
+        if (r.ok) {
+          const p = await r.json();
+          if (p.format === 'cc64web-project' && p.files) {
+            state.projects[p.name || 'raytracer'] = { files: p.files };
+            state.seeded.raytracer = true;
+            store();
+          }
+        }
+      } catch { /* not served (e.g. partial deploy) — skip */ }
+    }
     if (!(state.activeProject in state.projects)) state.activeProject = Object.keys(state.projects)[0];
     renderProjects();
     renderFiles();
