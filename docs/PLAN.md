@@ -116,7 +116,7 @@ flowchart LR
    https://rpi6.memention.net/cc64-web/ (deploy/): apache endpoints.d →
    python-stdlib server on :9007 serving the static IDE + an in-memory
    PRG stash (`POST api/prg` → 5-min URL). The "Run in Web64" button
-   POSTs the compiled PRG and opens `web64.nofs.ai/?url=<prg-url>&warp=true`
+   POSTs the compiled PRG and opens `web64.nofs.ai/?file=<prg-url>&autorun=true&warp=true`
    — the url param must be raw, NOT percent-encoded (verified end-to-end:
    sieve compiles in-browser, autostarts in web64, prints 1899 PRIMES).
 

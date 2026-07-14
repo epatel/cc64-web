@@ -90,9 +90,9 @@ for the raytracer.
 
 The deployed instance keeps compiled PRGs **in memory** for 5 minutes
 (`server/cc64web_server.py`, ~180 lines of Python stdlib) and hands Web64 a
-fetchable URL via its `?url=` autostart, warp enabled during load:
+fetchable URL via its `?file=` autostart, warp enabled during load:
 
-    compile → POST api/prg → open web64.nofs.ai/?url=<prg-url>&warp=true
+    compile → POST api/prg → open web64.nofs.ai/?file=<prg-url>&autorun=true&warp=true
 
 Locally, the program row is draggable straight onto a Web64 tab
 (Chromium's `DownloadURL` drag becomes a real file drop), or download the

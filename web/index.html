@@ -535,15 +535,24 @@
   }).catch(() => {});
   $('runweb64').onclick = async () => {
     if (!prgBytes) return;
+    // open the tab synchronously (inside the click gesture) — a window.open
+    // after an await is popup-blocked in normal browsing
+    const w64 = window.open('', '_blank');
     try {
       const r = await fetch(`../api/prg?name=${encodeURIComponent(prgName)}`,
         { method: 'POST', body: prgBytes });
       if (!r.ok) throw new Error(`upload failed (${r.status})`);
       const { path, expiresIn } = await r.json();
       const url = new URL(path, location.href);
-      window.open(`https://web64.nofs.ai/?url=${url}&warp=true`, '_blank');
-      log(`<span class="ok">${esc(prgName)}</span> handed to Web64 — the link expires in ${Math.round(expiresIn / 60)} min.`);
+      // current web64 reads ?file= (+autorun); older bundles read ?url=.
+      // Values must be raw, not percent-encoded.
+      const w64url = `https://web64.nofs.ai/?file=${url}&url=${url}&autorun=true&warp=true`;
+      if (w64) w64.location = w64url;
+      log(`<span class="ok">${esc(prgName)}</span> handed to Web64 — ` +
+        `<a href="${esc(w64url)}" target="_blank" rel="noopener">open again</a> ` +
+        `(the link expires in ${Math.round(expiresIn / 60)} min).`);
     } catch (e) {
+      if (w64) w64.close();
       log(`<span class="err">Web64 handoff: ${esc(e.message)}</span>`);
     }
   };
