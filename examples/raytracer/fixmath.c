@@ -15,6 +15,12 @@
 
 int qsq[511];                   /* q[n] = floor(n*n/4), mod 2^16 */
 
+/* Shared zero-page scratch (cc64-web 'zeropage' extension): declared first,
+ * the compiler is single-pass. fmul owns the naming; isqrt and fdiv reuse
+ * the cells - all three are leaves that never call each other. Globals beat
+ * locals ((frame),y indirection), zp beats absolute by a cycle per access. */
+zeropage int m_ah, m_al, m_bh, m_bl, m_t, m_u, m_r, m_s;
+
 int init_tables()
 {
   int i, q;
@@ -25,33 +31,31 @@ int init_tables()
   }
 }
 
-/* integer square root of n (0..32767) */
+/* integer square root of n (0..32767).
+ * Scratch reuses fmul's zeropage cells: fmul, fdiv and isqrt are leaves
+ * that never call each other, so the cells are dead between calls.
+ * m_r = r, m_t = bit, m_u = t, m_ah = n */
 int isqrt(n)
 int n;
 {
-  int r, bit, t;
-  r = 0;
-  bit = 0x4000;
-  while (bit > n)
-    bit = bit >> 2;
-  while (bit != 0) {
-    t = r + bit;
-    r = r >> 1;
-    if (n >= t) {
-      n = n - t;
-      r = r + bit;
+  m_r = 0;
+  m_t = 0x4000;
+  while (m_t > n)
+    m_t = m_t >> 2;
+  m_ah = n;
+  while (m_t != 0) {
+    m_u = m_r + m_t;
+    m_r = m_r >> 1;
+    if (m_ah >= m_u) {
+      m_ah = m_ah - m_u;
+      m_r = m_r + m_t;
     }
-    bit = bit >> 2;
+    m_t = m_t >> 2;
   }
-  return r;
+  return m_r;
 }
 
-/* 8.8 * 8.8 -> 8.8, truncating toward zero (sign-magnitude).
- * Working variables live in the zero page (cc64-web 'zeropage' extension):
- * globals beat locals ((frame),y indirection), and zp beats absolute by a
- * cycle per access - it all adds up at this call rate. */
-zeropage int m_ah, m_al, m_bh, m_bl, m_t, m_u, m_r, m_s;
-
+/* 8.8 * 8.8 -> 8.8, truncating toward zero (sign-magnitude). */
 int fmul(a, b)
 int a, b;
 {
@@ -86,44 +90,48 @@ int a, b;
   return m_r;
 }
 
-/* 8.8 / 8.8 -> 8.8, saturating at +/-127.996 */
+/* 8.8 / 8.8 -> 8.8, saturating at +/-127.996.
+ * Scratch reuses fmul's zeropage cells (leaf, see isqrt):
+ * m_s = neg, m_ah = q, m_r = r, m_t = f, m_u = i, m_bl = b */
 int fdiv(a, b)
 int a, b;
 {
-  int neg, q, r, f, i;
   if (b == 0) return 32767;
-  neg = 0;
-  if (a < 0) { a = -a; neg = !neg; }
-  if (b < 0) { b = -b; neg = !neg; }
-  q = a / b;
-  if (q > 126) {
-    q = 32767;
+  m_s = 0;
+  if (a < 0) { a = -a; m_s = 1; }
+  if (b < 0) { b = -b; m_s = 1 - m_s; }
+  m_ah = a / b;
+  if (m_ah > 126) {
+    m_ah = 32767;
   } else {
-    r = a % b;
-    f = 0;
-    i = 8;
-    while (i) {
-      r = r + r;
-      f = f + f;
-      if (r >= b || r < 0) {   /* r < 0 catches the 16-bit wrap */
-        r = r - b;
-        f = f + 1;
+    m_r = a % b;
+    m_bl = b;
+    m_t = 0;
+    m_u = 8;
+    while (m_u) {
+      m_r = m_r + m_r;
+      m_t = m_t + m_t;
+      if (m_r >= m_bl || m_r < 0) {   /* m_r < 0 catches the 16-bit wrap */
+        m_r = m_r - m_bl;
+        m_t = m_t + 1;
       }
-      i = i - 1;
+      m_u = m_u - 1;
     }
-    q = (q << 8) + f;
+    m_ah = (m_ah << 8) + m_t;
   }
-  if (neg) return -q;
-  return q;
+  if (m_s) return -m_ah;
+  return m_ah;
 }
 
-/* sqrt of an 8.8 value (>= 0) -> 8.8; isqrt seed + one Newton step */
+/* sqrt of an 8.8 value (>= 0) -> 8.8; isqrt seed + one Newton step.
+ * s_y is live across the fdiv call, so it gets its own zp cell. */
+zeropage int s_y;
+
 int fsqrt(x)
 int x;
 {
-  int y;
   if (x <= 0) return 0;
-  y = isqrt(x) << 4;
-  if (y == 0) return 0;
-  return (y + fdiv(x, y)) >> 1;
+  s_y = isqrt(x) << 4;
+  if (s_y == 0) return 0;
+  return (s_y + fdiv(x, s_y)) >> 1;
 }

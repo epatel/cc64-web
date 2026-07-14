@@ -42,11 +42,18 @@ the compiled PRG on `tools/run6502.mjs`.
 | table-of-squares fmul, char-pointer byte access | 1.36 G | 23 min |
 | fmul working vars as globals | 1.157 G | 19.6 min |
 | dx^2 by second differences: hit test = one compare | 1.121 G | 19.0 min |
-| fmul working vars `zeropage` (cc64-web extension) | **1.083 G** (measured) | **18.3 min** |
+| fmul working vars `zeropage` (cc64-web extension) | 1.083 G | 18.3 min |
+| fdiv/isqrt reuse fmul's zp cells (all leaves) | 1.003 G | 17.0 min |
+| render state to globals; hottest 5 in zp (pool full) | **0.978 G** (measured) | **16.5 min** |
 
 **The asm original measures 387 M cycles = 6.6 min at 1x** on the same
-harness (full frame verified) — the C version is 2.9x slower: 3.4x the
-instruction count at slightly lower cycles/instruction (2.85 vs 3.37).
+harness (full frame verified) — the C version is 2.5x slower: 3.1x the
+instruction count at slightly lower cycles/instruction (2.71 vs 3.37).
+The zeropage round exhausted the $57..$70 pool: fmul's 8 cells double as
+fdiv/isqrt scratch (leaf functions, never live at once), fsqrt's Newton
+temp survives its fdiv call so it owns a cell, and main's per-pixel
+accumulators (x, hxhi, hxlo, sh, bits) take the rest; everything else
+per-pixel is a plain global.
 Incidentally 6.6 min at 1x vs the author's "~2:20 under warp" implies a
 ~2.8x warp — matching web64's observed warp factor.
 

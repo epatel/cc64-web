@@ -21,58 +21,61 @@
 #include "scene.h"
 #include "protos.h"
 
+/* Working vars at file scope (globals are ~2x faster than locals; the zp
+ * pool is already full). Prefixed: the unity build is one namespace. */
+int r_t2, r_hx, r_hz, r_hzc, r_sb, r_sc;
+char r_shade;
+int t_t, t_nx, t_ny, t_nz, t_ndl, t_dn;
+char t_difs, t_s;
+
 int sample_ray(ox, oy, oz, vx, vy, vz)
 int ox, oy, oz, vx, vy, vz;
 {
-  int t2, hx, hz, hzc, sb, sc;
-  char shade;
   if (vy >= 0) {
-    shade = 1 + (vy >> 4);
-    if (shade > SKY_MAX) shade = SKY_MAX;
-    return shade;
+    r_shade = 1 + (vy >> 4);
+    if (r_shade > SKY_MAX) r_shade = SKY_MAX;
+    return r_shade;
   }
-  t2 = fdiv(FLOOR_Y - oy, vy);
-  if (t2 < 0) { shade = SHD_HAZE; return shade; }
-  if (t2 >= 0x2000) { shade = SHD_HAZE; return shade; }
-  hx = ox + fmul(t2, vx);
-  hz = oz + fmul(t2, vz);
-  if (((hx >> 8) + (hz >> 8)) & 1)
-    shade = SHD_CHK_HI;
+  r_t2 = fdiv(FLOOR_Y - oy, vy);
+  if (r_t2 < 0) { r_shade = SHD_HAZE; return r_shade; }
+  if (r_t2 >= 0x2000) { r_shade = SHD_HAZE; return r_shade; }
+  r_hx = ox + fmul(r_t2, vx);
+  r_hz = oz + fmul(r_t2, vz);
+  if (((r_hx >> 8) + (r_hz >> 8)) & 1)
+    r_shade = SHD_CHK_HI;
   else
-    shade = SHD_CHK_LO;
+    r_shade = SHD_CHK_LO;
   /* shadow ray from (hx, FLOOR_Y, hz) toward L, a = 1 since L is unit */
-  hzc = hz - SPH_CZ;
-  if (hx < SHADOW_RAW && hx > -SHADOW_RAW &&
-      hzc < SHADOW_RAW && hzc > -SHADOW_RAW) {
-    sb = fmul(hx, LGT_X) + OCY_LY + fmul(hzc, LGT_Z);
-    if (sb < 0) {
-      sc = fmul(hx, hx) + CC_SH + fmul(hzc, hzc);
-      if (fmul(sb, sb) - sc > 0)
-        shade = shade >> 2;
+  r_hzc = r_hz - SPH_CZ;
+  if (r_hx < SHADOW_RAW && r_hx > -SHADOW_RAW &&
+      r_hzc < SHADOW_RAW && r_hzc > -SHADOW_RAW) {
+    r_sb = fmul(r_hx, LGT_X) + OCY_LY + fmul(r_hzc, LGT_Z);
+    if (r_sb < 0) {
+      r_sc = fmul(r_hx, r_hx) + CC_SH + fmul(r_hzc, r_hzc);
+      if (fmul(r_sb, r_sb) - r_sc > 0)
+        r_shade = r_shade >> 2;
     }
   }
-  return shade;
+  return r_shade;
 }
 
 int trace_sphere(dx, dy, a, b, disc)
 int dx, dy, a, b, disc;
 {
-  int t, nx, ny, nz, ndl, dn;
-  char difs, s;
-  t = fdiv(b - fsqrt(disc), a);
-  if (t <= 0) { s = 255; return s; }   /* fall back to floor/sky */
-  nx = fmul(t, dx);          /* P = t*D; N = P - C (Cx = 0) */
-  ny = fmul(t, dy) - SPH_CY;
-  nz = t - SPH_CZ;
-  ndl = fmul(nx, LGT_X) + fmul(ny, 0 + LGT_Y) + fmul(nz, LGT_Z);
-  difs = 0;
-  if (ndl > 0) difs = (12 * ndl) >> 8;
-  dn = (fmul(dx, nx) + fmul(dy, ny) + nz) << 1;
-  s = sample_ray(nx, ny + SPH_CY, t,
-                 dx - fmul(dn, nx),
-                 dy - fmul(dn, ny),
-                 256 - fmul(dn, nz));
-  s = (s >> 1) + difs + 1;
-  if (s > 15) s = 15;
-  return s;
+  t_t = fdiv(b - fsqrt(disc), a);
+  if (t_t <= 0) { t_s = 255; return t_s; }   /* fall back to floor/sky */
+  t_nx = fmul(t_t, dx);          /* P = t*D; N = P - C (Cx = 0) */
+  t_ny = fmul(t_t, dy) - SPH_CY;
+  t_nz = t_t - SPH_CZ;
+  t_ndl = fmul(t_nx, LGT_X) + fmul(t_ny, 0 + LGT_Y) + fmul(t_nz, LGT_Z);
+  t_difs = 0;
+  if (t_ndl > 0) t_difs = (12 * t_ndl) >> 8;
+  t_dn = (fmul(dx, t_nx) + fmul(dy, t_ny) + t_nz) << 1;
+  t_s = sample_ray(t_nx, t_ny + SPH_CY, t_t,
+                   dx - fmul(t_dn, t_nx),
+                   dy - fmul(t_dn, t_ny),
+                   256 - fmul(t_dn, t_nz));
+  t_s = (t_s >> 1) + t_difs + 1;
+  if (t_s > 15) t_s = 15;
+  return t_s;
 }
