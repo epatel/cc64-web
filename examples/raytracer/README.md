@@ -40,14 +40,19 @@ the compiled PRG on `tools/run6502.mjs`.
 | naive per-pixel trace | ~7.5 G (est.) | ~2h 7m |
 | row constants, sphere x-band, byte plotting | 1.67 G | 28 min |
 | table-of-squares fmul, char-pointer byte access | 1.36 G | 23 min |
-| fmul working vars as globals | **1.157 G** (measured) | **19.6 min** |
+| fmul working vars as globals | 1.157 G | 19.6 min |
+| dx^2 by second differences: hit test = one compare | **1.121 G** (measured) | **19.0 min** |
 
-cc64-generated code averages 2.85 cycles/instruction; earlier rows are
-rescaled from their instruction counts, the last is cycle-exact.
+cc64-generated code averages ~2.85 cycles/instruction; the first rows are
+rescaled from instruction counts, the last two are cycle-exact
+(`make bench PRG=...`). The second-difference step also measured fmul's
+real cost: ~1700 cycles/call — the remaining hot spot is the ~10 fmul
+calls per sphere-hit pixel (trace_sphere + sample_ray), ~65% of the frame.
 
-Further candidates: incremental disc/a via second differences inside the
-sphere band, incremental shadow-ray terms (linear in hx), a squares-only
-fsq(), fdiv/isqrt internals as globals.
+Further candidates: fewer fmuls per hit (algebraic rework of the
+reflection), a squares-only fsq() (3 lookups instead of 4 products),
+incremental shadow-ray terms (linear in hx), fdiv/isqrt internals as
+globals.
 
 ## cc64 dialect traps found while porting (the hard way)
 

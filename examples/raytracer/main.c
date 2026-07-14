@@ -71,6 +71,7 @@ main()
   int y, x, dy, dx, i;
   int t2, hxhi, hxlo, dhi, dlo, z256, hzc, khz, kcc;
   int brow, arow, b2, lim, x0, x1, xa, xb, a, disc, sb, rowbase;
+  int vh, vl, d1h, d1l, dxa;
   char sh, rsh, hazerow, shadrow, sky, bits, bny, pb0, pb1;
   char *p;
 
@@ -122,6 +123,14 @@ main()
       xb = x1 | 7;
       if (xa < 0) xa = 0;
       if (xb > 319) xb = 319;
+      /* dx^2 tracked by exact second differences (24-bit as vh.vl):
+       * V(x) = dx^2, dV = 4*dx + 4, ddV = 8. Hit iff vh <= lim. */
+      dxa = (xa - 160) << 1;
+      if (dxa < 0) vh = -dxa; else vh = dxa;
+      vl = ((vh & 255) * (vh & 255)) & 255;
+      vh = fmul(vh, vh);
+      d1l = ((dxa << 2) + 4) & 255;
+      d1h = ((dxa << 2) + 4) >> 8;
     }
 
     if (sky || hazerow) {
@@ -146,13 +155,12 @@ main()
         p = rowbase + xa;
         bits = 0;
         for (x = xa; x <= xb; ++x) {
-          dx = (x - 160) << 1;
           sh = 255;
-          if (x >= x0 && x <= x1) {
-            a = fmul(dx, dx) + arow;
+          if (vh <= lim) {
+            a = vh + arow;
             disc = b2 - fmul(a, 0 + SPH_C2R);
             if (disc >= 0)
-              sh = trace_sphere(dx, dy, a, brow, disc);
+              sh = trace_sphere((x - 160) << 1, dy, a, brow, disc);
           }
           if (sh == 255) sh = rsh;
           bits = bits + bits;
@@ -162,6 +170,11 @@ main()
             p = p + 8;
             bits = 0;
           }
+          vl = vl + d1l;
+          if (vl > 255) { vl = vl - 256; vh = vh + 1; }
+          vh = vh + d1h;
+          d1l = d1l + 8;
+          if (d1l > 255) { d1l = d1l - 256; d1h = d1h + 1; }
         }
       }
     } else {
@@ -173,13 +186,12 @@ main()
         if (x == xa) {
           /* mixed segment [xa..xb]: sphere band over the floor */
           while (x <= xb) {
-            dx = (x - 160) << 1;
             sh = 255;
-            if (x >= x0 && x <= x1) {
-              a = fmul(dx, dx) + arow;
+            if (vh <= lim) {
+              a = vh + arow;
               disc = b2 - fmul(a, 0 + SPH_C2R);
               if (disc >= 0)
-                sh = trace_sphere(dx, dy, a, brow, disc);
+                sh = trace_sphere((x - 160) << 1, dy, a, brow, disc);
             }
             if (sh == 255) {
               if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
@@ -203,6 +215,11 @@ main()
             hxlo = hxlo + dlo;
             if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
             hxhi = hxhi + dhi;
+            vl = vl + d1l;
+            if (vl > 255) { vl = vl - 256; vh = vh + 1; }
+            vh = vh + d1h;
+            d1l = d1l + 8;
+            if (d1l > 255) { d1l = d1l - 256; d1h = d1h + 1; }
             ++x;
           }
         } else {
