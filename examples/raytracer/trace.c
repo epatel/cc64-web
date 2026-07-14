@@ -1,6 +1,6 @@
 /* trace.c - per-pixel ray tracing. Port of inspiration-raytracer/trace.asm.
  *
- * trace_pixel(px, py) -> shade 0-15
+ * trace_sphere(dx, dy, a, b, disc) -> shade 0-15, or 255 = miss (t <= 0)
  *
  * D = (dx, dy, 1)   dx = (px-160)/128, dy = (100-py)/128  (unnormalized)
  * Sphere (half-b quadratic):
@@ -54,35 +54,25 @@ int ox, oy, oz, vx, vy, vz;
   return shade;
 }
 
-int trace_pixel(px, py)
-int px, py;
+int trace_sphere(dx, dy, a, b, disc)
+int dx, dy, a, b, disc;
 {
-  int dx, dy, a, b, disc, t;
-  int nx, ny, nz, ndl, dn;
+  int t, nx, ny, nz, ndl, dn;
   char difs, s;
-  dx = (px - 160) << 1;
-  dy = (100 - py) << 1;
-  a = fmul(dx, dx) + fmul(dy, dy) + 256;
-  b = fmul(dy, 0 + SPH_CY) + SPH_CZ;
-  disc = fmul(b, b) - fmul(a, SPH_C2R);
-  if (disc >= 0) {
-    t = fdiv(b - fsqrt(disc), a);
-    if (t > 0) {
-      nx = fmul(t, dx);          /* P = t*D; N = P - C (Cx = 0) */
-      ny = fmul(t, dy) - SPH_CY;
-      nz = t - SPH_CZ;
-      ndl = fmul(nx, LGT_X) + fmul(ny, 0 + LGT_Y) + fmul(nz, LGT_Z);
-      difs = 0;
-      if (ndl > 0) difs = (12 * ndl) >> 8;
-      dn = (fmul(dx, nx) + fmul(dy, ny) + nz) << 1;
-      s = sample_ray(nx, ny + SPH_CY, t,
-                     dx - fmul(dn, nx),
-                     dy - fmul(dn, ny),
-                     256 - fmul(dn, nz));
-      s = (s >> 1) + difs + 1;
-      if (s > 15) s = 15;
-      return s;
-    }
-  }
-  return sample_ray(0, 0, 0, dx, dy, 256);
+  t = fdiv(b - fsqrt(disc), a);
+  if (t <= 0) { s = 255; return s; }   /* fall back to floor/sky */
+  nx = fmul(t, dx);          /* P = t*D; N = P - C (Cx = 0) */
+  ny = fmul(t, dy) - SPH_CY;
+  nz = t - SPH_CZ;
+  ndl = fmul(nx, LGT_X) + fmul(ny, 0 + LGT_Y) + fmul(nz, LGT_Z);
+  difs = 0;
+  if (ndl > 0) difs = (12 * ndl) >> 8;
+  dn = (fmul(dx, nx) + fmul(dy, ny) + nz) << 1;
+  s = sample_ray(nx, ny + SPH_CY, t,
+                 dx - fmul(dn, nx),
+                 dy - fmul(dn, ny),
+                 256 - fmul(dn, nz));
+  s = (s >> 1) + difs + 1;
+  if (s > 15) s = 15;
+  return s;
 }

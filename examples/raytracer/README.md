@@ -8,8 +8,9 @@ signed 8.8 fixed point in 16-bit ints (`fixmath.c` — no float, no longs).
 
 ## Files
 
-- `main.c` — video init (VIC bank 1: bitmap $4000, screen $6000), render
-  loop, 4x4 Bayer dither, pixel plot
+- `main.c` — video init (VIC bank 3: bitmap $e000 under the KERNAL ROM —
+  the render path is write-only — screen $c400), row-based render loop,
+  16x16 blue-noise dither (the asm original's table)
 - `trace.c` — `trace_pixel`: half-b sphere quadratic, one-bounce mirror
   reflection, N·L diffuse, floor shadow ray, sky gradient
 - `scene.h` — scene constants (8.8), with hand-derived `SPH_C2R`,
@@ -27,11 +28,23 @@ node examples/raytracer/mkproject.mjs
 compile-checks with the real compiler, writes `raytracer.prg`, and joins
 the sources into `raytracer.cc64proj.json` — import that in the cc64-web
 page (⤒ button in the project bar) to get the whole thing as an editable
-multi-file project. Run the PRG in Web64 with **warp on** (a frame is
-minutes warped, hours at 1x).
+multi-file project. Run the PRG in Web64 with **warp on**.
 
-Verified pixel-identical (0/64000 mismatches) against a JS model of the
-algorithm by executing the compiled PRG on `tools/run6502.mjs`.
+Verified pixel-identical against a JS model of the algorithm by executing
+the compiled PRG on `tools/run6502.mjs`.
+
+## Performance log (instruction-level harness)
+
+| version | ~cycles/frame | C64 time at 1x |
+|---|---|---|
+| naive per-pixel trace | ~8.0 G | ~2h 15m |
+| row constants, sphere x-band, byte plotting | 1.81 G | 31 min |
+| table-of-squares fmul, char-pointer byte access | 1.48 G | 25 min |
+| fmul working vars as globals | 1.26 G | 21 min |
+
+Further candidates: incremental disc/a via second differences inside the
+sphere band, incremental shadow-ray terms (linear in hx), a squares-only
+fsq(), fdiv/isqrt internals as globals.
 
 ## cc64 dialect traps found while porting (the hard way)
 
@@ -45,3 +58,8 @@ algorithm by executing the compiled PRG on `tools/run6502.mjs`.
   true comparison). Fixes: keep shade-sized values in `char` variables
   (char *loads* clear the high byte), or force int-ness with `0 + NAME`
   at argument sites. Character literals (`'a'`) are int-typed and safe.
+- **Locals cost ~2x globals**: locals are (frame),y indirection, globals
+  are absolute addressing. Hot leaf functions want file-scope globals.
+- **The locals stack starts right after the loaded PRG image** and grows
+  up: a big program plus a bitmap at $4000 collide silently. Hence the
+  bitmap at $e000 under the ROM (writes land in RAM; never read it back).

@@ -6,12 +6,12 @@
 // Usage as lib: import { run } from './run6502.mjs'
 
 export function makeCpu(mem) {
-  const c = { a: 0, x: 0, y: 0, sp: 0xfd, pc: 0, n: 0, z: 1, cf: 0, v: 0, d: 0, i: 1, mem, cycles: 0 };
+  const c = { a: 0, x: 0, y: 0, sp: 0xfd, pc: 0, n: 0, z: 1, cf: 0, v: 0, d: 0, i: 1, mem, cycles: 0, writes: 0 };
   return c;
 }
 
 const rd = (c, a) => c.mem[a & 0xffff];
-const wr = (c, a, v) => { c.mem[a & 0xffff] = v & 0xff; };
+const wr = (c, a, v) => { c.mem[a & 0xffff] = v & 0xff; c.writes++; };
 const rd16 = (c, a) => rd(c, a) | (rd(c, a + 1) << 8);
 
 function push(c, v) { wr(c, 0x100 + c.sp, v); c.sp = (c.sp - 1) & 0xff; }
@@ -232,10 +232,15 @@ export function run(prg, { maxSteps = 2e9, trapAddr = null, onTrap = null } = {}
   c.pc = Number(m[1]);
   // sentinel return address: RTS from the entry ends the run
   push(c, 0xff); push(c, 0xfe);   // returns to $ffff
+  let lastWrites = 0, lastWriteStep = 0;
   for (let i = 0; i < maxSteps; i++) {
     if (c.pc === 0xffff) return { c, mem, done: true, steps: i };
     if (trapAddr !== null && c.pc === trapAddr && onTrap) onTrap(c);
+    const before = c.pc;
     step(c);
+    if (c.pc === before) return { c, mem, done: true, selfJmp: true, steps: i };
+    if (c.writes !== lastWrites) { lastWrites = c.writes; lastWriteStep = i; }
+    else if (i - lastWriteStep > 100000) return { c, mem, done: true, idle: true, steps: lastWriteStep };
   }
   return { c, mem, done: false, steps: maxSteps };
 }
