@@ -52,21 +52,27 @@ the compiled PRG on `tools/run6502.mjs`.
 | fdiv/isqrt reuse fmul's zp cells (all leaves) | 1.003 G | 17.0 min |
 | render state to globals; hottest 5 in zp (pool full) | 0.978 G | 16.5 min |
 | `__asm` quarter-square fmul (self-modifying, as the original) | 0.411 G | 7.0 min |
-| `__asm` fdiv (24-step long division) + isqrt (inline shifts) | **0.301 G** (measured) | **5.1 min** |
+| `__asm` fdiv (24-step long division) + isqrt (inline shifts) | 0.301 G | 5.1 min |
+| fixmath operands straight into the zp cells (no parameters) | **0.273 G** (measured) | **4.6 min** |
 
 **The asm original measures 387 M cycles = 6.6 min at 1x** on the same
-harness (full frame verified) — this version now **beats it by 22%**:
+harness (full frame verified) — this version now **beats it by 29%**:
 same fixed-point kernels (fmul/umul16 ported near-verbatim into cc64-web
 `__asm` blocks — operand bytes patched into the lookup instructions,
 the |a-b| index by the complement trick, byte tables at $c800-$cfff
 behind the bank-3 screen; fdiv's 24-step shift-subtract long division;
 isqrt with inline lsr/ror), while the C row/band structure does per-row
-constant folding the original left as a TODO. fmul: 2,185 -> 314
-cyc/call; fdiv: 2,819 -> 1,400; isqrt: 1,657 -> 622. The `__zeropage`
+constant folding the original left as a TODO. fmul: 2,185 -> 270
+cyc/call; fdiv: 2,819 -> 1,345; isqrt: 1,657 -> 599. The `__zeropage`
 round before it exhausted the $57..$70 pool: fmul's cells double as
 fdiv/isqrt scratch (leaf functions, never live at once), fsqrt's Newton
 temp survives its fdiv call so it owns a cell, and main's per-pixel
 accumulators (x, hxhi, hxlo, vh, vl, sh, bits) fill the rest.
+The final row drops cc64's parameter passing for the fixmath leaves
+entirely: callers store the operands into m_a/m_b themselves and the
+functions take no arguments (~82 cycles saved per 2-arg call — stack
+push, (frame),y reload and zp store all gone; cc64 has no function-like
+macros, so the call sites sequence the stores explicitly).
 Incidentally 6.6 min at 1x vs the author's "~2:20 under warp" implies a
 ~2.8x warp — matching web64's observed warp factor.
 
@@ -76,15 +82,15 @@ rescaled from instruction counts, the later ones are cycle-exact
 (`make profile SRC=examples/raytracer`):
 
 ```
-fmul        95.0M  31.6%   303,110 calls    314 cyc/call
-fdiv        58.6M  19.5%    41,854 calls  1,400 cyc/call
-main        56.5M  18.8%
-trace_sphere 39.1M  13.0%   16,658 calls  2,349 cyc/call
-sample_ray  13.5M   4.5%    16,658 calls    813 cyc/call
+fmul        81.7M  29.9%   303,110 calls    270 cyc/call
+fdiv        56.3M  20.6%    41,854 calls  1,345 cyc/call
+main        53.4M  19.6%
+trace_sphere 33.7M  12.4%   16,658 calls  2,024 cyc/call
+sample_ray  11.7M   4.3%    16,658 calls    705 cyc/call
 ```
 
-What's left is compiled-C glue: trace_sphere/sample_ray's 2,349/813
-cyc/call are mostly cc64 argument passing and 16-bit temp shuffling
+What's left is compiled-C glue: trace_sphere/sample_ray's 2,024/705
+cyc/call are mostly their own argument passing and 16-bit temp shuffling
 around ~13 fmul calls per sphere pixel. Further candidates: fewer fmuls
 per hit (algebraic rework of the reflection), a squares-only fsq()
 (2 lookups instead of 4), fdiv's leading-zero skip, incremental

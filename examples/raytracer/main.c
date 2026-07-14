@@ -97,32 +97,49 @@ main()
       rsh = 1 + (dy >> 4);
       if (rsh > SKY_MAX) rsh = SKY_MAX;
     } else {
-      t2 = fdiv(0 + FLOOR_Y, dy);
+      m_a = 0 + FLOOR_Y;
+      m_b = dy;
+      t2 = fdiv();
       if (t2 < 0) hazerow = 1;
       if (t2 >= 0x2000) hazerow = 1;
       if (hazerow) rsh = SHD_HAZE;
       z256 = t2 & 256;                   /* hz = t2 (vz = 1.0): checker z-parity */
       hzc = t2 - SPH_CZ;
       if (hzc < SHADOW_RAW && hzc > -SHADOW_RAW) shadrow = 1;
-      khz = OCY_LY + fmul(hzc, 0 + LGT_Z);
-      kcc = CC_SH + fmul(hzc, hzc);
-      hxhi = fmul(t2, -320);             /* hx at x=0 (dx = -320) */
+      m_a = hzc;
+      m_b = 0 + LGT_Z;
+      khz = OCY_LY + fmul();
+      m_a = hzc;
+      m_b = hzc;
+      kcc = CC_SH + fmul();
+      m_a = t2;
+      m_b = -320;
+      hxhi = fmul();                     /* hx at x=0 (dx = -320) */
       hxlo = 0;
       dlo = (t2 << 1) & 255;             /* exact 8.16 step: t2*2 */
       dhi = (t2 << 1) >> 8;
     }
 
     /* ---- per-row sphere band: disc >= 0 iff dx^2 <= b2/c - dy^2 - 1 ---- */
-    brow = fmul(dy, 0 + SPH_CY) + SPH_CZ;
-    arow = fmul(dy, dy) + 256;
-    b2 = fmul(brow, brow);
+    m_a = dy;
+    m_b = 0 + SPH_CY;
+    brow = fmul() + SPH_CZ;
+    m_a = dy;
+    m_b = dy;
+    arow = fmul() + 256;
+    m_a = brow;
+    m_b = brow;
+    b2 = fmul();
     x0 = 320;
     x1 = -1;
     xa = 320;
     xb = -1;
-    lim = fdiv(b2, 0 + SPH_C2R) - arow;
+    m_a = b2;
+    m_b = 0 + SPH_C2R;
+    lim = fdiv() - arow;
     if (lim > 0) {
-      x1 = fsqrt(lim) >> 1;              /* dx = (x-160)*2: half in pixels */
+      m_a = lim;
+      x1 = fsqrt() >> 1;                 /* dx = (x-160)*2: half in pixels */
       x0 = 160 - x1 - 2;
       x1 = 160 + x1 + 2;
       xa = x0 & 0xf8;                    /* byte-aligned band */
@@ -134,7 +151,9 @@ main()
       dxa = (xa - 160) << 1;
       if (dxa < 0) vh = -dxa; else vh = dxa;
       vl = ((vh & 255) * (vh & 255)) & 255;
-      vh = fmul(vh, vh);
+      m_a = vh;
+      m_b = vh;
+      vh = fmul();
       d1l = ((dxa << 2) + 4) & 255;
       d1h = ((dxa << 2) + 4) >> 8;
     }
@@ -164,7 +183,9 @@ main()
           sh = 255;
           if (vh <= lim) {
             a = vh + arow;
-            disc = b2 - fmul(a, 0 + SPH_C2R);
+            m_a = a;
+            m_b = 0 + SPH_C2R;
+            disc = b2 - fmul();
             if (disc >= 0)
               sh = trace_sphere((x - 160) << 1, dy, a, brow, disc);
           }
@@ -195,7 +216,9 @@ main()
             sh = 255;
             if (vh <= lim) {
               a = vh + arow;
-              disc = b2 - fmul(a, 0 + SPH_C2R);
+              m_a = a;
+              m_b = 0 + SPH_C2R;
+              disc = b2 - fmul();
               if (disc >= 0)
                 sh = trace_sphere((x - 160) << 1, dy, a, brow, disc);
             }
@@ -203,9 +226,16 @@ main()
               if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
               if (shadrow) {
                 if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-                  sb = fmul(hxhi, 0 + LGT_X) + khz;
+                  m_a = hxhi;
+                  m_b = 0 + LGT_X;
+                  sb = fmul() + khz;
                   if (sb < 0) {
-                    if (fmul(sb, sb) - (fmul(hxhi, hxhi) + kcc) > 0)
+                    m_a = sb;
+                    m_b = sb;
+                    sb = fmul();       /* sb reused: now sb^2 */
+                    m_a = hxhi;
+                    m_b = hxhi;
+                    if (sb - (fmul() + kcc) > 0)
                       sh = sh >> 2;
                   }
                 }
@@ -234,9 +264,16 @@ main()
             if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
             if (shadrow) {
               if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-                sb = fmul(hxhi, 0 + LGT_X) + khz;
+                m_a = hxhi;
+                m_b = 0 + LGT_X;
+                sb = fmul() + khz;
                 if (sb < 0) {
-                  if (fmul(sb, sb) - (fmul(hxhi, hxhi) + kcc) > 0)
+                  m_a = sb;
+                  m_b = sb;
+                  sb = fmul();         /* sb reused: now sb^2 */
+                  m_a = hxhi;
+                  m_b = hxhi;
+                  if (sb - (fmul() + kcc) > 0)
                     sh = sh >> 2;
                 }
               }

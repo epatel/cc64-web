@@ -24,7 +24,14 @@
 
 /* Shared zero-page scratch (cc64-web '__zeropage' extension): declared
  * first, the compiler is single-pass. fmul owns the naming; isqrt and
- * fdiv reuse the cells - all three are leaves that never call each other. */
+ * fdiv reuse the cells - all three are leaves that never call each other.
+ *
+ * Calling convention: these functions take NO parameters - the caller
+ * stores the operands into m_a (and m_b) directly and calls fmul() /
+ * fdiv() / isqrt() / fsqrt(). Skipping cc64's parameter passing (stack
+ * push + (frame),y reload + zp store) saves ~82 cycles per 2-arg call.
+ * The price is sequencing discipline: between setting m_a/m_b and the
+ * call, nothing may call another fixmath function. */
 __zeropage int m_a, m_b, m_r, m_t, m_u, m_s;
 
 int init_tables()
@@ -48,13 +55,11 @@ int init_tables()
   }
 }
 
-/* integer square root of n (0..32767): the binary bit-method, in asm so
+/* integer square root of m_a (0..32767): the binary bit-method, in asm so
  * the shifts are lsr/ror instead of runtime $shr calls (~67 cycles each).
- * Scratch: m_r = r, m_t = bit, m_u = t, m_a = n */
-int isqrt(n)
-int n;
+ * Scratch: m_r = r, m_t = bit, m_u = t, m_a = n. m_b/m_s untouched. */
+int isqrt()
 {
-  m_a = n;
   __asm {
     lda #0
     sta m_r
@@ -129,11 +134,8 @@ int n;
  * (+ carries), P0..P3 the four 8x8 partials. Each partial is two
  * table rows subtracted: SQR1[a+b] - SQR2[(255-a)+b], with a / 255-a
  * patched into the operand bytes and b in Y. */
-int fmul(a, b)
-int a, b;
+int fmul()      /* operands in m_a, m_b */
 {
-  m_a = a;
-  m_b = b;
   __asm {
     lda m_a+1
     eor m_b+1
@@ -257,12 +259,9 @@ int a, b;
  * The 24-bit dividend/quotient register is m_u(lo) m_a m_a+1(hi):
  * quotient bits enter at the bottom as dividend bits leave the top.
  * Scratch: m_t = remainder, m_s = sign. */
-int fdiv(a, b)
-int a, b;
+int fdiv()      /* operands in m_a, m_b */
 {
-  if (b == 0) return 32767;
-  m_a = a;
-  m_b = b;
+  if (m_b == 0) return 32767;
   __asm {
     lda m_a+1
     eor m_b+1
@@ -349,15 +348,18 @@ int a, b;
   return m_r;
 }
 
-/* sqrt of an 8.8 value (>= 0) -> 8.8; isqrt seed + one Newton step.
- * s_y is live across the fdiv call, so it gets its own zp cell. */
+/* sqrt of an 8.8 value in m_a (>= 0) -> 8.8; isqrt seed + one Newton step.
+ * s_y is live across the fdiv call, so it gets its own zp cell; x is
+ * parked in m_b across isqrt (which spares m_b and m_s). */
 __zeropage int s_y;
 
-int fsqrt(x)
-int x;
+int fsqrt()     /* operand in m_a */
 {
-  if (x <= 0) return 0;
-  s_y = isqrt(x) << 4;
+  if (m_a <= 0) return 0;
+  m_b = m_a;
+  s_y = isqrt() << 4;
   if (s_y == 0) return 0;
-  return (s_y + fdiv(x, s_y)) >> 1;
+  m_a = m_b;
+  m_b = s_y;
+  return (s_y + fdiv()) >> 1;
 }

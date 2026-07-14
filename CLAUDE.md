@@ -54,6 +54,7 @@ oracle.
   (no initializers; `*=` addresses < $100 also get zp opcodes), and
   `__asm { ... }` embeds raw 6502 in function bodies (src/asmblock.js —
   local labels, symbol+offset for self-modifying code, auto zp/abs; see
-  the raytracer's fmul: 2,185 → 314 cyc/call).
+  the raytracer's fmul: 2,185 → 270 cyc/call — the last 44 from passing
+operands straight into the zp cells instead of function parameters).
 - VICE 3.9 flags: `-virtualdev8`, `+drive8truedrive`; segfaults under
   SDL_VIDEODRIVER=dummy on macOS (run with a real window).
