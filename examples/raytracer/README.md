@@ -28,7 +28,13 @@ node examples/raytracer/mkproject.mjs
 compile-checks with the real compiler, writes `raytracer.prg`, and joins
 the sources into `raytracer.cc64proj.json` — import that in the cc64-web
 page (⤒ button in the project bar) to get the whole thing as an editable
-multi-file project. Run the PRG in Web64 with **warp on**.
+multi-file project.
+
+Verified end-to-end in the browser: the imported project compiles in the
+IDE to the same 11600 bytes as the node build (`__asm` and all), and the
+PRG runs in Web64 to a complete correct frame in ~5 real minutes —
+matching the harness's 5.1-minute prediction. Note web64's `?warp=true`
+only warps boot+load; the render itself runs at 1x.
 
 Verified pixel-identical against a JS model of the algorithm by executing
 the compiled PRG on `tools/run6502.mjs`.
