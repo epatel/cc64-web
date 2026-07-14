@@ -43,11 +43,20 @@ the compiled PRG on `tools/run6502.mjs`.
 | fmul working vars as globals | 1.157 G | 19.6 min |
 | dx^2 by second differences: hit test = one compare | **1.121 G** (measured) | **19.0 min** |
 
+**The asm original measures 387 M cycles = 6.6 min at 1x** on the same
+harness (full frame verified) — the C version is 2.9x slower: 3.4x the
+instruction count at slightly lower cycles/instruction (2.85 vs 3.37).
+Incidentally 6.6 min at 1x vs the author's "~2:20 under warp" implies a
+~2.8x warp — matching web64's observed warp factor.
+
 cc64-generated code averages ~2.85 cycles/instruction; the first rows are
 rescaled from instruction counts, the last two are cycle-exact
 (`make bench PRG=...`). The second-difference step also measured fmul's
 real cost: ~1700 cycles/call — the remaining hot spot is the ~10 fmul
-calls per sphere-hit pixel (trace_sphere + sample_ray), ~65% of the frame.
+calls per sphere-hit pixel (trace_sphere + sample_ray), ~65% of the
+frame. Closing the 2.9x gap to the asm would take eliminating most of
+those calls (algebraic rework), not just cheapening them: even a free
+fmul only buys ~2.8x.
 
 Further candidates: fewer fmuls per hit (algebraic rework of the
 reflection), a squares-only fsq() (3 lookups instead of 4 products),
