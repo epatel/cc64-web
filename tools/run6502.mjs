@@ -1,12 +1,13 @@
 // Minimal NMOS 6502 interpreter (documented opcodes) — an execution harness
 // for cc64-web output: load a PRG into flat RAM, start at its BASIC stub's
-// SYS target, run N instructions. No Kernal, no VIC — pure CPU + 64K RAM
+// SYS target, run N instructions with REAL NMOS cycle counts (base cycles,
+// page-cross and branch-taken penalties). No Kernal, no VIC — CPU + 64K RAM
 // (fine for compute-style programs; Kernal calls would hit RTS-less ROM).
 //
 // Usage as lib: import { run } from './run6502.mjs'
 
 export function makeCpu(mem) {
-  const c = { a: 0, x: 0, y: 0, sp: 0xfd, pc: 0, n: 0, z: 1, cf: 0, v: 0, d: 0, i: 1, mem, cycles: 0, writes: 0 };
+  const c = { a: 0, x: 0, y: 0, sp: 0xfd, pc: 0, n: 0, z: 1, cf: 0, v: 0, d: 0, i: 1, mem, cycles: 0, instructions: 0, writes: 0, px: 0 };
   return c;
 }
 
@@ -33,14 +34,18 @@ function aZP(c) { return rd(c, c.pc++); }
 function aZPX(c) { return (rd(c, c.pc++) + c.x) & 0xff; }
 function aZPY(c) { return (rd(c, c.pc++) + c.y) & 0xff; }
 function aABS(c) { const a = rd16(c, c.pc); c.pc += 2; return a; }
-function aABSX(c) { return (aABS(c) + c.x) & 0xffff; }
-function aABSY(c) { return (aABS(c) + c.y) & 0xffff; }
+function aABSX(c) { const b = aABS(c); const a = (b + c.x) & 0xffff; c.px = (b ^ a) & 0xff00 ? 1 : 0; return a; }
+function aABSY(c) { const b = aABS(c); const a = (b + c.y) & 0xffff; c.px = (b ^ a) & 0xff00 ? 1 : 0; return a; }
 function aINDX(c) { const z = (rd(c, c.pc++) + c.x) & 0xff; return rd(c, z) | (rd(c, (z + 1) & 0xff) << 8); }
-function aINDY(c) { const z = rd(c, c.pc++); return ((rd(c, z) | (rd(c, (z + 1) & 0xff) << 8)) + c.y) & 0xffff; }
+function aINDY(c) { const z = rd(c, c.pc++); const b = rd(c, z) | (rd(c, (z + 1) & 0xff) << 8); const a = (b + c.y) & 0xffff; c.px = (b ^ a) & 0xff00 ? 1 : 0; return a; }
 
 function branch(c, cond) {
   const off = rd(c, c.pc++);
-  if (cond) c.pc = (c.pc + (off < 128 ? off : off - 256)) & 0xffff;
+  if (cond) {
+    const t = (c.pc + (off < 128 ? off : off - 256)) & 0xffff;
+    c.cycles += 1 + (((c.pc ^ t) & 0xff00) ? 1 : 0);
+    c.pc = t;
+  }
 }
 
 function flags(c) {
@@ -51,8 +56,48 @@ function setFlags(c, p) {
   c.i = (p >> 2) & 1; c.z = (p >> 1) & 1; c.cf = p & 1;
 }
 
+
+// NMOS 6502 cycle counts (documented opcodes). Reads with abs,X / abs,Y /
+// (zp),Y cost +1 when the index crosses a page; branches cost +1 when
+// taken and +1 more when the target crosses a page.
+const CYC = new Uint8Array(256);
+{
+  const set = (pairs) => { for (const [op, n] of pairs) CYC[op] = n; };
+  set([[0xa9,2],[0xa5,3],[0xb5,4],[0xad,4],[0xbd,4],[0xb9,4],[0xa1,6],[0xb1,5], // LDA
+       [0xa2,2],[0xa6,3],[0xb6,4],[0xae,4],[0xbe,4],                            // LDX
+       [0xa0,2],[0xa4,3],[0xb4,4],[0xac,4],[0xbc,4],                            // LDY
+       [0x85,3],[0x95,4],[0x8d,4],[0x9d,5],[0x99,5],[0x81,6],[0x91,6],          // STA
+       [0x86,3],[0x96,4],[0x8e,4],[0x84,3],[0x94,4],[0x8c,4],                   // STX/STY
+       [0xaa,2],[0xa8,2],[0x8a,2],[0x98,2],[0xba,2],[0x9a,2],                   // transfers
+       [0x48,3],[0x68,4],[0x08,3],[0x28,4],                                     // stack
+       [0x69,2],[0x65,3],[0x75,4],[0x6d,4],[0x7d,4],[0x79,4],[0x61,6],[0x71,5], // ADC
+       [0xe9,2],[0xe5,3],[0xf5,4],[0xed,4],[0xfd,4],[0xf9,4],[0xe1,6],[0xf1,5], // SBC
+       [0x29,2],[0x25,3],[0x35,4],[0x2d,4],[0x3d,4],[0x39,4],[0x21,6],[0x31,5], // AND
+       [0x09,2],[0x05,3],[0x15,4],[0x0d,4],[0x1d,4],[0x19,4],[0x01,6],[0x11,5], // ORA
+       [0x49,2],[0x45,3],[0x55,4],[0x4d,4],[0x5d,4],[0x59,4],[0x41,6],[0x51,5], // EOR
+       [0xc9,2],[0xc5,3],[0xd5,4],[0xcd,4],[0xdd,4],[0xd9,4],[0xc1,6],[0xd1,5], // CMP
+       [0xe0,2],[0xe4,3],[0xec,4],[0xc0,2],[0xc4,3],[0xcc,4],                   // CPX/CPY
+       [0x24,3],[0x2c,4],                                                        // BIT
+       [0xe6,5],[0xf6,6],[0xee,6],[0xfe,7],[0xc6,5],[0xd6,6],[0xce,6],[0xde,7], // INC/DEC
+       [0xe8,2],[0xc8,2],[0xca,2],[0x88,2],
+       [0x0a,2],[0x06,5],[0x16,6],[0x0e,6],[0x1e,7],                             // ASL
+       [0x4a,2],[0x46,5],[0x56,6],[0x4e,6],[0x5e,7],                             // LSR
+       [0x2a,2],[0x26,5],[0x36,6],[0x2e,6],[0x3e,7],                             // ROL
+       [0x6a,2],[0x66,5],[0x76,6],[0x6e,6],[0x7e,7],                             // ROR
+       [0x4c,3],[0x6c,5],[0x20,6],[0x60,6],[0x40,6],
+       [0x10,2],[0x30,2],[0x50,2],[0x70,2],[0x90,2],[0xb0,2],[0xd0,2],[0xf0,2],
+       [0x18,2],[0x38,2],[0x58,2],[0x78,2],[0xb8,2],[0xd8,2],[0xf8,2],[0xea,2],
+       [0x00,7]]);
+}
+// reads that pay +1 on a page cross
+const PX = new Uint8Array(256);
+for (const op of [0xbd,0xb9,0xb1,0xbe,0xbc,
+                  0x7d,0x79,0x71,0xfd,0xf9,0xf1,0x3d,0x39,0x31,
+                  0x1d,0x19,0x11,0x5d,0x59,0x51,0xdd,0xd9,0xd1]) PX[op] = 1;
+
 export function step(c) {
   const op = rd(c, c.pc++);
+  c.px = 0;
   let a;
   switch (op) {
     // loads/stores
@@ -216,7 +261,8 @@ export function step(c) {
     case 0x00: throw new Error(`BRK at $${(c.pc - 1).toString(16)}`);
     default: throw new Error(`unimplemented opcode $${op.toString(16)} at $${(c.pc - 1).toString(16)}`);
   }
-  c.cycles++;
+  c.cycles += CYC[op] + (PX[op] ? c.px : 0);
+  c.instructions++;
 }
 
 // Load a PRG, find the BASIC stub's SYS target, run.
@@ -234,13 +280,13 @@ export function run(prg, { maxSteps = 2e9, trapAddr = null, onTrap = null } = {}
   push(c, 0xff); push(c, 0xfe);   // returns to $ffff
   let lastWrites = 0, lastWriteStep = 0;
   for (let i = 0; i < maxSteps; i++) {
-    if (c.pc === 0xffff) return { c, mem, done: true, steps: i };
+    if (c.pc === 0xffff) return { c, mem, done: true, steps: i, cycles: c.cycles };
     if (trapAddr !== null && c.pc === trapAddr && onTrap) onTrap(c);
     const before = c.pc;
     step(c);
-    if (c.pc === before) return { c, mem, done: true, selfJmp: true, steps: i };
+    if (c.pc === before) return { c, mem, done: true, selfJmp: true, steps: i, cycles: c.cycles };
     if (c.writes !== lastWrites) { lastWrites = c.writes; lastWriteStep = i; }
-    else if (i - lastWriteStep > 100000) return { c, mem, done: true, idle: true, steps: lastWriteStep };
+    else if (i - lastWriteStep > 100000) return { c, mem, done: true, idle: true, steps: lastWriteStep, cycles: c.cycles };
   }
-  return { c, mem, done: false, steps: maxSteps };
+  return { c, mem, done: false, steps: maxSteps, cycles: c.cycles };
 }

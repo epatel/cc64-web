@@ -33,14 +33,17 @@ multi-file project. Run the PRG in Web64 with **warp on**.
 Verified pixel-identical against a JS model of the algorithm by executing
 the compiled PRG on `tools/run6502.mjs`.
 
-## Performance log (instruction-level harness)
+## Performance log (`node tools/bench6502.mjs raytracer.prg`)
 
-| version | ~cycles/frame | C64 time at 1x |
+| version | cycles/frame | C64 time at 1x (PAL) |
 |---|---|---|
-| naive per-pixel trace | ~8.0 G | ~2h 15m |
-| row constants, sphere x-band, byte plotting | 1.81 G | 31 min |
-| table-of-squares fmul, char-pointer byte access | 1.48 G | 25 min |
-| fmul working vars as globals | 1.26 G | 21 min |
+| naive per-pixel trace | ~7.5 G (est.) | ~2h 7m |
+| row constants, sphere x-band, byte plotting | 1.67 G | 28 min |
+| table-of-squares fmul, char-pointer byte access | 1.36 G | 23 min |
+| fmul working vars as globals | **1.157 G** (measured) | **19.6 min** |
+
+cc64-generated code averages 2.85 cycles/instruction; earlier rows are
+rescaled from their instruction counts, the last is cycle-exact.
 
 Further candidates: incremental disc/a via second differences inside the
 sphere band, incremental shadow-ray terms (linear in hx), a squares-only

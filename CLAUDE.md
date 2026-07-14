@@ -36,8 +36,9 @@ oracle.
 - cc64 dialect semantics: `>>` is ARITHMETIC (sign-extends); `/` `%` floor
   toward -inf; small `#define`s are CHAR-typed and pass/assign/return with
   a junk high byte (see examples/raytracer/README.md — use char vars or
-  `0 + NAME`). `tools/run6502.mjs` executes compiled PRGs for semantic
-  probing (see the raytracer debugging pattern).
+  `0 + NAME`). `tools/run6502.mjs` executes compiled PRGs with cycle-exact
+  NMOS timing for semantic probing; `make bench PRG=f.prg` benchmarks
+  (see the raytracer debugging pattern).
 - String/char literals are PETSCII in output; `\n` = CR (13).
 - `stat,` emits hi byte first — the init stream is reversed into memory.
 - Pointer scaling in `+`/`-` applies to the LEFT operand only.

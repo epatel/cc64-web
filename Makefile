@@ -6,14 +6,15 @@ menu:
 	echo "3 make diff                 - differential compile test only"
 	echo "4 make golden SRC=f.c       - build golden PRG via real cc64 in VICE (needs CC64_REPO)"
 	echo "5 make prg SRC=f.c          - compile f.c to f.prg with cc64-web"
-	echo "6 make update_phony         - update .PHONY in Makefile"
+	echo "6 make bench PRG=f.prg      - cycle-exact benchmark on the 6502 harness"
+	echo "7 make update_phony         - update .PHONY in Makefile"
 
 select:
 	read -p ">>> " P ; make menu | grep "^$$P " | cut -d ' ' -f2-3 | bash
 
 .SILENT:
 
-.PHONY: info menu select test web diff golden prg update_phony
+.PHONY: info menu select test web diff golden prg bench update_phony
 
 test:
 	npm test
@@ -44,6 +45,10 @@ prg:
 	const out = '$(OUT)' || '$(SRC)'.replace(/\.c$$/, '.prg'); \
 	writeFileSync(out, res.prg); \
 	console.log(out + ': ' + res.prg.length + ' bytes');"
+
+bench:
+	test -n "$(PRG)" || (echo "usage: make bench PRG=file.prg" && exit 1)
+	node tools/bench6502.mjs $(PRG)
 
 update_phony:
 	echo "##### Updating .PHONY targets #####"
