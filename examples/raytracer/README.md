@@ -2,8 +2,8 @@
 
 A C port of the assembly raytracer (`inspiration-raytracer/`): one shiny
 sphere (mirror + Lambertian) over an infinite checkerboard, directional
-light with cast shadows, sky darkening toward the horizon, Bayer-dithered
-to 320x200 hires mono. Written in cc64's small-C dialect; all math is
+light with cast shadows, sky darkening toward the horizon, blue-noise
+dithered to 320x200 hires mono. Written in cc64's small-C dialect; all math is
 signed 8.8 fixed point in 16-bit ints (`fixmath.c` — no float, no longs).
 
 ## Files
@@ -11,11 +11,13 @@ signed 8.8 fixed point in 16-bit ints (`fixmath.c` — no float, no longs).
 - `main.c` — video init (VIC bank 3: bitmap $e000 under the KERNAL ROM —
   the render path is write-only — screen $c400), row-based render loop,
   16x16 blue-noise dither (the asm original's table)
-- `trace.c` — `trace_pixel`: half-b sphere quadratic, one-bounce mirror
-  reflection, N·L diffuse, floor shadow ray, sky gradient
+- `trace.c` — `trace_sphere`/`sample_ray`: half-b sphere quadratic,
+  one-bounce mirror reflection (normal-free algebra, see the header),
+  N·L diffuse, floor shadow ray, sky gradient
 - `scene.h` — scene constants (8.8), with hand-derived `SPH_C2R`,
-  `OCY_LY`, `CC_SH` (formulas in the header)
-- `fixmath.c` — `fmul`/`fdiv`/`fsqrt`/`isqrt` under cc64 semantics
+  `OCY_LY`, `CC_SH`, `C_DOT_L` (formulas in the header)
+- `fixmath.c` — `fmul`/`fsq`/`fdiv`/`fsqrt`/`isqrt` under cc64 semantics;
+  operands go directly into the zeropage cells, no parameters
 - `protos.h` — prototypes (the unity build is alphabetical, so cross-file
   calls need cc64's jmp-stub prototypes)
 
@@ -30,10 +32,11 @@ the sources into `raytracer.cc64proj.json` — import that in the cc64-web
 page (⤒ button in the project bar) to get the whole thing as an editable
 multi-file project.
 
-Verified end-to-end in the browser: the imported project compiles in the
-IDE to the same 11600 bytes as the node build (`__asm` and all), and the
-PRG runs in Web64 to a complete correct frame in ~5 real minutes —
-matching the harness's 5.1-minute prediction. Note web64's `?warp=true`
+Verified end-to-end in the browser (at the 5.1-minute version): the
+imported project compiled in the IDE to the same bytes as the node build
+(`__asm` and all), and the PRG ran in Web64 to a complete correct frame
+in ~5 real minutes — matching the harness prediction. The current build
+is 17161 bytes, 3.9 minutes on the harness. Note web64's `?warp=true`
 only warps boot+load; the render itself runs at 1x.
 
 Originally verified pixel-identical against a JS model of the algorithm by

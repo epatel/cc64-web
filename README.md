@@ -50,12 +50,15 @@ golden output is untouched unless a source opts in:
 `examples/raytracer/` is the proving ground: a mirror sphere over a
 checkered floor (a C port of an assembly original), 320×200 hires,
 blue-noise dithered, all math in 8.8 fixed point. The optimization log in
-its README walks from a naive ~2 hours per frame down to **5.1 minutes on a
-stock PAL C64 — 22% faster than the hand-written assembly original** —
-using the extensions above: quarter-square multiply with self-modifying
-table lookups in `__asm`, long-division `fdiv`, and the zeropage pool
-filled to the last byte. Every step verified pixel-identical against a JS
-model of the algorithm.
+its README walks from a naive ~2 hours per frame down to **3.9 minutes on a
+stock PAL C64 — 41% faster than the hand-written assembly original** —
+using the extensions above (quarter-square multiply with self-modifying
+table lookups in `__asm`, long-division `fdiv`, the zeropage pool filled
+to the last byte) plus operands passed straight through the zeropage
+cells, reflection algebra that never materializes the surface normal, a
+squares-only `fsq()`, and a leading-zero skip in `fdiv`. Every step
+verified on the cycle-exact 6502 harness — byte-identical renders, except
+the algebraic rework, which flips 212 dither pixels (0.33%).
 
 ## Tooling
 
