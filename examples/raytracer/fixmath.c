@@ -363,6 +363,13 @@ int fdiv()      /* operands in m_a, m_b */
     sta m_t             ; remainder = 0
     sta m_t+1
     ldx #3              ; 3 passes x 8 unrolled steps = 24
+    lda m_a+1           ; leading-zero skip: |a| < 1.0 means the first
+    bne dloop           ; 8 steps only shift zeros (no remainder, no
+    lda m_a             ; quotient bits) - pre-shift the register bytes
+    sta m_a+1           ; [0, al, 0] << 8 = [al, 0, 0] and run 2 passes
+    lda #0
+    sta m_a
+    ldx #2
   dloop:
     asl m_u             ; --- step 1 ---
     rol m_a
