@@ -71,14 +71,11 @@ int ox, oy, oz, vx, vy, vz;
     r_sb = r_sb + fmul();
     if (r_sb < 0) {
       m_a = r_hx;
-      m_b = r_hx;
-      r_sc = fmul() + CC_SH;
+      r_sc = fsq() + CC_SH;
       m_a = r_hzc;
-      m_b = r_hzc;
-      r_sc = r_sc + fmul();
+      r_sc = r_sc + fsq();
       m_a = r_sb;
-      m_b = r_sb;
-      if (fmul() - r_sc > 0)
+      if (fsq() - r_sc > 0)
         r_shade = r_shade >> 2;
     }
   }

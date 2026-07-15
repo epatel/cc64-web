@@ -58,10 +58,11 @@ sphere and its reflection).
 | `__asm` fdiv (24-step long division) + isqrt (inline shifts) | 0.301 G | 5.1 min |
 | fixmath operands straight into the zp cells (no parameters) | 0.273 G | 4.6 min |
 | reflection algebra: g = t*a - b, R = k*D + 2g*C — N never built | 0.251 G | 4.3 min |
-| unrolled: fdiv steps x8, floor byte loop x8, init_video clears x8 | **0.244 G** (measured) | **4.1 min** |
+| unrolled: fdiv steps x8, floor byte loop x8, init_video clears x8 | 0.244 G | 4.1 min |
+| fsq(): squares-only quarter-square (P1 = P2, f(0) rows collapse) | **0.236 G** (measured) | **4.0 min** |
 
 **The asm original measures 387 M cycles = 6.6 min at 1x** on the same
-harness (full frame verified) — this version now **beats it by 37%**:
+harness (full frame verified) — this version now **beats it by 39%**:
 same fixed-point kernels (fmul/umul16 ported near-verbatim into cc64-web
 `__asm` blocks — operand bytes patched into the lookup instructions,
 the |a-b| index by the complement trick, byte tables at $c800-$cfff
@@ -88,6 +89,12 @@ The unroll row is mechanical: fdiv's 24 division steps as 3 passes of 8,
 the plain-floor pixel loop as 8 copies (letting the bnoise index and the
 x advance hoist out), init_video's clears x8 — +6 KB of PRG for -7.6 M
 cycles.
+The fsq row adds a squares-only quarter-square routine (fixmath.c):
+x^2 >= 0 kills the sign logic, the cross partials coincide (P1 = P2,
+computed once, added twice), and AL*AL = f(AL+AL) - f(0) with f(0) = 0
+turns P0/P3 into single direct table reads — 161 vs 266 cyc/call over
+65,915 self-multiplies (the shadow tests' sb^2/hxhi^2 dominate),
+bit-exact with fmul(x, x) so the render is unchanged.
 Incidentally 6.6 min at 1x vs the author's "~2:20 under warp" implies a
 ~2.8x warp — matching web64's observed warp factor.
 
@@ -97,20 +104,20 @@ rescaled from instruction counts, the later ones are cycle-exact
 (`make profile SRC=examples/raytracer`):
 
 ```
-fmul        67.3M  27.6%   253,056 calls    266 cyc/call
-fdiv        52.2M  21.4%    41,882 calls  1,246 cyc/call
-main        50.7M  20.8%
-trace_sphere 26.6M  10.9%   16,658 calls  1,599 cyc/call
-sample_ray  10.5M   4.3%     8,143 calls  1,295 cyc/call
+fdiv        52.4M  22.2%    41,882 calls  1,250 cyc/call
+main        50.1M  21.2%
+fmul        49.5M  21.0%   187,141 calls    265 cyc/call
+trace_sphere 26.7M  11.3%   16,658 calls  1,605 cyc/call
+fsq         10.6M   4.5%    65,915 calls    161 cyc/call
+sample_ray  10.3M   4.4%     8,143 calls  1,268 cyc/call
 ```
 
-What's left is compiled-C glue: trace_sphere/sample_ray's 1,599/1,295
+What's left is compiled-C glue: trace_sphere/sample_ray's 1,605/1,268
 cyc/call are mostly their own argument passing and 16-bit temp shuffling
-around 6-8 fmul calls per sphere pixel. Further candidates: a
-squares-only fsq() (2 lookups instead of 4) for the self-multiplies,
-fdiv's leading-zero skip, incremental shadow-ray terms (linear in hx),
-and passing trace_sphere/sample_ray arguments through globals the way
-fixmath does.
+around 6-8 fmul calls per sphere pixel. Further candidates: fdiv's
+leading-zero skip (now the top consumer), incremental shadow-ray terms
+(linear in hx), and passing trace_sphere/sample_ray arguments through
+globals the way fixmath does.
 
 ## cc64 dialect traps found while porting (the hard way)
 

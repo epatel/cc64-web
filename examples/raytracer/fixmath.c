@@ -253,6 +253,78 @@ int fmul()      /* operands in m_a, m_b */
   return m_r;
 }
 
+/* 8.8 squared -> 8.8: fmul(x, x) reduced. x^2 >= 0 kills the sign
+ * logic; the cross partials coincide (P1 = P2, computed once); and the
+ * quarter-square rows collapse for the squares - AL*AL = f(AL+AL) - f(0)
+ * with f(0) = 0, so P0 and P3 are single direct reads (patch AL, Y = AL
+ * -> SQR1[2*AL]). Bit-exact with fmul(x, x): same byte1/byte2 sums,
+ * same dropped <P0. Scratch: m_t, m_u, m_r; m_b/m_s untouched. */
+int fsq()       /* operand in m_a */
+{
+  __asm {
+    lda m_a+1
+    bpl qpos
+    sec                 ; x = -x
+    lda #0
+    sbc m_a
+    sta m_a
+    lda #0
+    sbc m_a+1
+    sta m_a+1
+  qpos:
+    lda m_a             ; patch AL
+    sta q1+1            ; P0: SQR1HI[AL + AL]
+    sta q2+1            ; P1: SQR1[AL + AH]
+    sta q3+1
+    eor #255
+    sta q4+1            ; P1: SQR2[(255-AL) + AH]
+    sta q5+1
+    lda m_a+1           ; patch AH
+    sta q6+1            ; P3: SQR1LO[AH + AH]
+    ldy m_a
+  q1:
+    lda SQR1HI,y        ; >P0 = >f(2*AL) (f(0) term is 0)
+    sta m_t
+    ldy m_a+1
+    sec                 ; P1 = AL*AH
+  q2:
+    lda SQR1LO,y
+  q4:
+    sbc SQR2LO,y
+    sta m_r             ; <P1 (kept twice: P2 = P1)
+    sta m_u
+  q3:
+    lda SQR1HI,y
+  q5:
+    sbc SQR2HI,y
+    sta m_r+1           ; >P1
+    sta m_u+1
+  q6:
+    lda SQR1LO,y        ; <P3 = <f(2*AH)
+    tax
+
+    clc                 ; byte1 = >P0 + <P1 + <P2
+    lda m_t             ; byte2 = >P1 + >P2 + <P3 (+ carries; as fmul)
+    adc m_r
+    sta m_t
+    lda m_r+1
+    adc #0
+    sta m_r+1
+    clc
+    lda m_t
+    adc m_u
+    sta m_r
+    lda m_r+1
+    adc m_u+1
+    sta m_t
+    clc
+    txa
+    adc m_t
+    sta m_r+1
+  }
+  return m_r;
+}
+
 /* 8.8 / 8.8 -> 8.8, saturating at +/-127.996: the asm original's 24-step
  * shift-subtract long division Q = (|a| << 8) / |b|, but keeping this
  * port's stricter saturation (q > 126 -> 32767, sign applied after).

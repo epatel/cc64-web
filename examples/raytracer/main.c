@@ -114,8 +114,7 @@ main()
       m_b = 0 + LGT_Z;
       khz = OCY_LY + fmul();
       m_a = hzc;
-      m_b = hzc;
-      kcc = CC_SH + fmul();
+      kcc = CC_SH + fsq();
       m_a = t2;
       m_b = -320;
       hxhi = fmul();                     /* hx at x=0 (dx = -320) */
@@ -132,11 +131,9 @@ main()
     m_b = 0 + SPH_CY;
     brow = fmul() + SPH_CZ;
     m_a = dy;
-    m_b = dy;
-    arow = fmul() + 256;
+    arow = fsq() + 256;
     m_a = brow;
-    m_b = brow;
-    b2 = fmul();
+    b2 = fsq();
     x0 = 320;
     x1 = -1;
     xa = 320;
@@ -159,8 +156,7 @@ main()
       if (dxa < 0) vh = -dxa; else vh = dxa;
       vl = ((vh & 255) * (vh & 255)) & 255;
       m_a = vh;
-      m_b = vh;
-      vh = fmul();
+      vh = fsq();
       d1l = ((dxa << 2) + 4) & 255;
       d1h = ((dxa << 2) + 4) >> 8;
     }
@@ -238,11 +234,9 @@ main()
                   sb = fmul() + khz;
                   if (sb < 0) {
                     m_a = sb;
-                    m_b = sb;
-                    sb = fmul();       /* sb reused: now sb^2 */
+                    sb = fsq();        /* sb reused: now sb^2 */
                     m_a = hxhi;
-                    m_b = hxhi;
-                    if (sb - (fmul() + kcc) > 0)
+                    if (sb - (fsq() + kcc) > 0)
                       sh = sh >> 2;
                   }
                 }
@@ -278,11 +272,9 @@ main()
               sb = fmul() + khz;
               if (sb < 0) {
                 m_a = sb;
-                m_b = sb;
-                sb = fmul();           /* sb reused: now sb^2 */
+                sb = fsq();            /* sb reused: now sb^2 */
                 m_a = hxhi;
-                m_b = hxhi;
-                if (sb - (fmul() + kcc) > 0)
+                if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
@@ -300,11 +292,9 @@ main()
               sb = fmul() + khz;
               if (sb < 0) {
                 m_a = sb;
-                m_b = sb;
-                sb = fmul();
+                sb = fsq();
                 m_a = hxhi;
-                m_b = hxhi;
-                if (sb - (fmul() + kcc) > 0)
+                if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
@@ -322,11 +312,9 @@ main()
               sb = fmul() + khz;
               if (sb < 0) {
                 m_a = sb;
-                m_b = sb;
-                sb = fmul();
+                sb = fsq();
                 m_a = hxhi;
-                m_b = hxhi;
-                if (sb - (fmul() + kcc) > 0)
+                if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
@@ -344,11 +332,9 @@ main()
               sb = fmul() + khz;
               if (sb < 0) {
                 m_a = sb;
-                m_b = sb;
-                sb = fmul();
+                sb = fsq();
                 m_a = hxhi;
-                m_b = hxhi;
-                if (sb - (fmul() + kcc) > 0)
+                if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
@@ -366,11 +352,9 @@ main()
               sb = fmul() + khz;
               if (sb < 0) {
                 m_a = sb;
-                m_b = sb;
-                sb = fmul();
+                sb = fsq();
                 m_a = hxhi;
-                m_b = hxhi;
-                if (sb - (fmul() + kcc) > 0)
+                if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
@@ -388,11 +372,9 @@ main()
               sb = fmul() + khz;
               if (sb < 0) {
                 m_a = sb;
-                m_b = sb;
-                sb = fmul();
+                sb = fsq();
                 m_a = hxhi;
-                m_b = hxhi;
-                if (sb - (fmul() + kcc) > 0)
+                if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
@@ -410,11 +392,9 @@ main()
               sb = fmul() + khz;
               if (sb < 0) {
                 m_a = sb;
-                m_b = sb;
-                sb = fmul();
+                sb = fsq();
                 m_a = hxhi;
-                m_b = hxhi;
-                if (sb - (fmul() + kcc) > 0)
+                if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
@@ -432,11 +412,9 @@ main()
               sb = fmul() + khz;
               if (sb < 0) {
                 m_a = sb;
-                m_b = sb;
-                sb = fmul();
+                sb = fsq();
                 m_a = hxhi;
-                m_b = hxhi;
-                if (sb - (fmul() + kcc) > 0)
+                if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }

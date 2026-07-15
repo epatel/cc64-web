@@ -5,6 +5,7 @@
 int init_tables();
 int isqrt();
 int fmul();
+int fsq();
 int fdiv();
 int fsqrt();
 int sample_ray();
