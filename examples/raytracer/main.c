@@ -79,7 +79,7 @@ __zeropage char sh, bits;
 int y, dy, i;
 int t2, dhi, dlo, z256, hzc, khz, kcc;
 int brow, arow, b2, lim, x0, x1, xa, xb, a, disc, sb, rowbase;
-int d1h, d1l, dxa, r_dl;
+int d1h, d1l, dxa, r_dl, sbh, sbl, dsbh, dsbl;
 char rsh, hazerow, shadrow, sky, bny, pb0, pb1;
 char *p;
 
@@ -121,6 +121,19 @@ main()
       hxlo = 0;
       dlo = (t2 << 1) & 255;             /* exact 8.16 step: t2*2 */
       dhi = (t2 << 1) >> 8;
+      if (shadrow) {
+        /* sb = hx*lx + khz is linear in hx: track it as 8.16 like hx
+         * itself instead of an fmul per pixel. Step = lx * dhx. */
+        m_a = t2 << 1;
+        m_b = 0 + LGT_X;
+        sbh = fmul();                    /* 8.8 result = 8.16 step */
+        dsbl = sbh & 255;
+        dsbh = sbh >> 8;
+        m_a = hxhi;
+        m_b = 0 + LGT_X;
+        sbh = fmul() + khz;              /* seed at x = 0 */
+        sbl = 0;
+      }
     }
 
     /* ---- per-row sphere band: disc >= 0 iff dx^2 <= b2/c - dy^2 - 1 ---- */
@@ -229,12 +242,9 @@ main()
               if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
               if (shadrow) {
                 if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-                  m_a = hxhi;
-                  m_b = 0 + LGT_X;
-                  sb = fmul() + khz;
-                  if (sb < 0) {
-                    m_a = sb;
-                    sb = fsq();        /* sb reused: now sb^2 */
+                  if (sbh < 0) {       /* sb tracked incrementally */
+                    m_a = sbh;
+                    sb = fsq();        /* sb reused: sbh^2 */
                     m_a = hxhi;
                     if (sb - (fsq() + kcc) > 0)
                       sh = sh >> 2;
@@ -252,6 +262,11 @@ main()
             hxlo = hxlo + dlo;
             if (hxlo > 255) { hxlo = hxlo - 256; hxhi = hxhi + 1; }
             hxhi = hxhi + dhi;
+            if (shadrow) {
+              sbl = sbl + dsbl;        /* sb += lx*dhx, 8.16 */
+              if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+              sbh = sbh + dsbh;
+            }
             vl = vl + d1l;
             if (vl > 255) { vl = vl - 256; vh = vh + 1; }
             vh = vh + d1h;
@@ -267,17 +282,17 @@ main()
           if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
           if (shadrow) {
             if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-              m_a = hxhi;
-              m_b = 0 + LGT_X;
-              sb = fmul() + khz;
-              if (sb < 0) {
-                m_a = sb;
-                sb = fsq();            /* sb reused: now sb^2 */
+              if (sbh < 0) {           /* sb tracked incrementally */
+                m_a = sbh;
+                sb = fsq();            /* sb reused: sbh^2 */
                 m_a = hxhi;
                 if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
+            sbl = sbl + dsbl;          /* sb += lx*dhx, 8.16 */
+            if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+            sbh = sbh + dsbh;
           }
           bits = bits + bits;
           if (sh > bnoise[i]) bits = bits + 1;
@@ -287,17 +302,17 @@ main()
           if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
           if (shadrow) {
             if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-              m_a = hxhi;
-              m_b = 0 + LGT_X;
-              sb = fmul() + khz;
-              if (sb < 0) {
-                m_a = sb;
+              if (sbh < 0) {
+                m_a = sbh;
                 sb = fsq();
                 m_a = hxhi;
                 if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
+            sbl = sbl + dsbl;
+            if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+            sbh = sbh + dsbh;
           }
           bits = bits + bits;
           if (sh > bnoise[i + 1]) bits = bits + 1;
@@ -307,17 +322,17 @@ main()
           if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
           if (shadrow) {
             if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-              m_a = hxhi;
-              m_b = 0 + LGT_X;
-              sb = fmul() + khz;
-              if (sb < 0) {
-                m_a = sb;
+              if (sbh < 0) {
+                m_a = sbh;
                 sb = fsq();
                 m_a = hxhi;
                 if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
+            sbl = sbl + dsbl;
+            if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+            sbh = sbh + dsbh;
           }
           bits = bits + bits;
           if (sh > bnoise[i + 2]) bits = bits + 1;
@@ -327,17 +342,17 @@ main()
           if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
           if (shadrow) {
             if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-              m_a = hxhi;
-              m_b = 0 + LGT_X;
-              sb = fmul() + khz;
-              if (sb < 0) {
-                m_a = sb;
+              if (sbh < 0) {
+                m_a = sbh;
                 sb = fsq();
                 m_a = hxhi;
                 if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
+            sbl = sbl + dsbl;
+            if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+            sbh = sbh + dsbh;
           }
           bits = bits + bits;
           if (sh > bnoise[i + 3]) bits = bits + 1;
@@ -347,17 +362,17 @@ main()
           if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
           if (shadrow) {
             if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-              m_a = hxhi;
-              m_b = 0 + LGT_X;
-              sb = fmul() + khz;
-              if (sb < 0) {
-                m_a = sb;
+              if (sbh < 0) {
+                m_a = sbh;
                 sb = fsq();
                 m_a = hxhi;
                 if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
+            sbl = sbl + dsbl;
+            if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+            sbh = sbh + dsbh;
           }
           bits = bits + bits;
           if (sh > bnoise[i + 4]) bits = bits + 1;
@@ -367,17 +382,17 @@ main()
           if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
           if (shadrow) {
             if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-              m_a = hxhi;
-              m_b = 0 + LGT_X;
-              sb = fmul() + khz;
-              if (sb < 0) {
-                m_a = sb;
+              if (sbh < 0) {
+                m_a = sbh;
                 sb = fsq();
                 m_a = hxhi;
                 if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
+            sbl = sbl + dsbl;
+            if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+            sbh = sbh + dsbh;
           }
           bits = bits + bits;
           if (sh > bnoise[i + 5]) bits = bits + 1;
@@ -387,17 +402,17 @@ main()
           if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
           if (shadrow) {
             if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-              m_a = hxhi;
-              m_b = 0 + LGT_X;
-              sb = fmul() + khz;
-              if (sb < 0) {
-                m_a = sb;
+              if (sbh < 0) {
+                m_a = sbh;
                 sb = fsq();
                 m_a = hxhi;
                 if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
+            sbl = sbl + dsbl;
+            if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+            sbh = sbh + dsbh;
           }
           bits = bits + bits;
           if (sh > bnoise[i + 6]) bits = bits + 1;
@@ -407,17 +422,17 @@ main()
           if ((hxhi & 256) != z256) sh = SHD_CHK_HI; else sh = SHD_CHK_LO;
           if (shadrow) {
             if (hxhi < SHADOW_RAW && hxhi > -SHADOW_RAW) {
-              m_a = hxhi;
-              m_b = 0 + LGT_X;
-              sb = fmul() + khz;
-              if (sb < 0) {
-                m_a = sb;
+              if (sbh < 0) {
+                m_a = sbh;
                 sb = fsq();
                 m_a = hxhi;
                 if (sb - (fsq() + kcc) > 0)
                   sh = sh >> 2;
               }
             }
+            sbl = sbl + dsbl;
+            if (sbl > 255) { sbl = sbl - 256; sbh = sbh + 1; }
+            sbh = sbh + dsbh;
           }
           bits = bits + bits;
           if (sh > bnoise[i + 7]) bits = bits + 1;

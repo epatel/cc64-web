@@ -43,7 +43,8 @@ Originally verified pixel-identical against a JS model of the algorithm by
 executing the compiled PRG on `tools/run6502.mjs`. The later
 reflection-algebra rework takes different fixed-point rounding paths and
 flips 212 of 64,000 pixels (0.33%, scattered dither-level changes on the
-sphere and its reflection).
+sphere and its reflection); the incremental shadow term moves the cast
+shadow's dithered edge by another 34 pixels (0.05%).
 
 ## Performance log (`node tools/bench6502.mjs raytracer.prg`)
 
@@ -63,10 +64,11 @@ sphere and its reflection).
 | reflection algebra: g = t*a - b, R = k*D + 2g*C — N never built | 0.251 G | 4.3 min |
 | unrolled: fdiv steps x8, floor byte loop x8, init_video clears x8 | 0.244 G | 4.1 min |
 | fsq(): squares-only quarter-square (P1 = P2, f(0) rows collapse) | 0.236 G | 4.0 min |
-| fdiv leading-zero skip: numerator < 1.0 jumps a whole 8-step pass | **0.229 G** (measured) | **3.9 min** |
+| fdiv leading-zero skip: numerator < 1.0 jumps a whole 8-step pass | 0.229 G | 3.9 min |
+| incremental shadow term: sb = hx*lx + khz tracked 8.16 like hx | **0.225 G** (measured) | **3.8 min** |
 
 **The asm original measures 387 M cycles = 6.6 min at 1x** on the same
-harness (full frame verified) — this version now **beats it by 41%**:
+harness (full frame verified) — this version now **beats it by 42%**:
 same fixed-point kernels (fmul/umul16 ported near-verbatim into cc64-web
 `__asm` blocks — operand bytes patched into the lookup instructions,
 the |a-b| index by the complement trick, byte tables at $c800-$cfff
@@ -105,6 +107,11 @@ pre-shifts to [al, 0, 0] and one whole unrolled pass is skipped —
 about half the frame's 41,882 divisions qualify (sample_ray's
 FLOOR_Y - oy on the lower sphere half, fsqrt's Newton divide near the
 band edges); fdiv 1,250 -> 1,095 cyc/call, 5 cycles for the rest.
+The shadow-term row notices sb is linear in hx: an 8.16 accumulator
+(seeded per row, stepped by fmul(2*t2, lx) split into hi/lo bytes)
+replaces ~24,600 per-pixel fmuls with two adds each. The accumulator
+sees the exact 8.16 hx where the fmul saw the truncated 8.8 one, so the
+shadow's dithered edge shifts by 34 pixels.
 Incidentally 6.6 min at 1x vs the author's "~2:20 under warp" implies a
 ~2.8x warp — matching web64's observed warp factor.
 
@@ -114,19 +121,18 @@ rescaled from instruction counts, the later ones are cycle-exact
 (`make profile SRC=examples/raytracer`):
 
 ```
-main        50.1M  21.9%
-fmul        49.5M  21.6%   187,141 calls    265 cyc/call
-fdiv        45.9M  20.0%    41,882 calls  1,095 cyc/call
-trace_sphere 26.6M  11.6%   16,658 calls  1,599 cyc/call
-fsq         10.6M   4.6%    65,915 calls    161 cyc/call
-sample_ray  10.3M   4.5%     8,143 calls  1,268 cyc/call
+main        52.3M  23.3%
+fdiv        45.9M  20.4%    41,882 calls  1,095 cyc/call
+fmul        42.7M  19.0%   162,522 calls    262 cyc/call
+trace_sphere 26.6M  11.9%   16,658 calls  1,599 cyc/call
+fsq         10.6M   4.7%    65,915 calls    161 cyc/call
+sample_ray  10.3M   4.6%     8,143 calls  1,268 cyc/call
 ```
 
 What's left is compiled-C glue: trace_sphere/sample_ray's 1,599/1,268
 cyc/call are mostly their own argument passing and 16-bit temp shuffling
-around 6-8 fmul calls per sphere pixel. Further candidates: incremental
-shadow-ray terms (linear in hx), and passing trace_sphere/sample_ray
-arguments through globals the way fixmath does.
+around 6-8 fmul calls per sphere pixel. Remaining candidate: passing
+trace_sphere/sample_ray arguments through globals the way fixmath does.
 
 ## cc64 dialect traps found while porting (the hard way)
 
