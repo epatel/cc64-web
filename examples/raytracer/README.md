@@ -19,7 +19,8 @@ signed 8.8 fixed point in 16-bit ints (`fixmath.c` — no float, no longs).
 - `fixmath.c` — `fmul`/`fsq`/`fdiv`/`fsqrt`/`isqrt` under cc64 semantics;
   operands go directly into the zeropage cells, no parameters
 - `protos.h` — prototypes (the unity build is alphabetical, so cross-file
-  calls need cc64's jmp-stub prototypes)
+  calls need cc64's jmp-stub prototypes — measured at 0.022% of the
+  frame, see the end of the performance log)
 
 ## Build
 
@@ -133,6 +134,20 @@ What's left is compiled-C glue: trace_sphere/sample_ray's 1,599/1,268
 cyc/call are mostly their own argument passing and 16-bit temp shuffling
 around 6-8 fmul calls per sphere pixel. Remaining candidate: passing
 trace_sphere/sample_ray arguments through globals the way fixmath does.
+
+Rejected: patching prototype call sites directly instead of cc64's
+3-byte jmp stubs (calls emitted *before* a function's definition go
+jsr stub -> jmp real; calls after it already go direct). Measured on
+the full frame: the build has 9 stubs (27 bytes) and only one is ever
+hot — main.c's calls to trace_sphere (main.c sorts before trace.c in
+the alphabetical unity build) — 16,658 executions x 3 cycles = ~50k
+cycles, 0.022% of the run. Removing the stubs would also shift every
+subsequent code address, breaking byte-identity with real cc64 (the
+prime directive), and address-of a prototyped function (function
+pointers, static initializers) resolves to the stub too, so every such
+site would need its own patch record. If those 50k cycles ever matter,
+the zero-divergence fix is ordering trace.c before main.c in the
+amalgamation so the hot call follows its definition.
 
 ## cc64 dialect traps found while porting (the hard way)
 
