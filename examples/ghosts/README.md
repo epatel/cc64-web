@@ -42,8 +42,8 @@ setup code so their addresses are backward references when the setup does
 
 ## The ghosts
 
-One multicolor `__sprite` (white body, black eyes), copied to sprite block
-128 (`$2000`) and shown by all eight sprites at once. Each frame the main
+One hires `__sprite` (a white ghost with transparent eye holes), copied to
+sprite block 128 (`$2000`) and shown by all eight sprites at once. Each frame the main
 loop reads a 32-entry sine table (`bob[]`) with a per-sprite phase offset
 and writes the sprite Y registers, so the ghosts ripple as a wave. They
 sit at Y ≈ 246–254, straddling and dipping below the floor bar drawn on

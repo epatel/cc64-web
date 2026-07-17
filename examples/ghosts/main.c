@@ -13,32 +13,32 @@
  * the way down. A second interrupt near the top restores 25-row mode so
  * the trick repeats every frame. See README.md.
  *
- * Multicolor ghost: o = 10 = sprite color ($d027, white),
- * x = 11 = shared multicolor 2 ($d026, black eyes).
+ * Hires ghost: 24 . / x pixels per row, a single color ($d027, white);
+ * the eyes are transparent holes that show the black background.
  */
 
 __sprite ghost = {
-  .... oooo ....
-  ..oo oooo oo..
-  .ooo oooo ooo.
-  oooo oooo oooo
-  oooo oooo oooo
-  oooo oooo oooo
-  ooxx oooo xxoo
-  ooxx oooo xxoo
-  ooxx oooo xxoo
-  oooo oooo oooo
-  oooo oooo oooo
-  oooo oooo oooo
-  oooo oooo oooo
-  oooo oooo oooo
-  oooo oooo oooo
-  oooo oooo oooo
-  oooo oooo oooo
-  oooo oooo oooo
-  oo.. .oo. ..oo
-  oo.. .oo. ..oo
-  .... .... ....
+  ........ xxxxxxxx ........
+  .....xxx xxxxxxxx xxx.....
+  ...xxxxx xxxxxxxx xxxxx...
+  ..xxxxxx xxxxxxxx xxxxxx..
+  .xxxxxxx xxxxxxxx xxxxxxx.
+  .xxxxxxx xxxxxxxx xxxxxxx.
+  xxxxxx.. .xxxxxx. ..xxxxxx
+  xxxxx... ..xxxx.. ...xxxxx
+  xxxxx... ..xxxx.. ...xxxxx
+  xxxxx... ..xxxx.. ...xxxxx
+  xxxxx... ..xxxx.. ...xxxxx
+  xxxxxx.. .xxxxxx. ..xxxxxx
+  xxxxxxxx xxxxxxxx xxxxxxxx
+  xxxxxxxx xxxxxxxx xxxxxxxx
+  xxxxxxxx xxxxxxxx xxxxxxxx
+  xxxxxxxx xxxxxxxx xxxxxxxx
+  xxxxxxxx xxxxxxxx xxxxxxxx
+  xxxxxxxx xxxxxxxx xxxxxxxx
+  .xxxx..x xxx..xxx x..xxxx.
+  ..xx.... xx....xx ....xx..
+  ........ ........ ........
 };
 
 /* vertical bob, one sine period in 32 steps (amplitude 4 px) */
@@ -141,8 +141,7 @@ main()
   sptr = 0x07f8;               /* sprite pointers, after the $0400 screen */
   vic[0x20] = 14;              /* border: light blue */
   vic[0x21] = 0;               /* background: black */
-  vic[0x1c] = 255;             /* all sprites multicolor */
-  vic[0x26] = 0;               /* shared mc2 = black (eyes) */
+  vic[0x1c] = 0;               /* all sprites hires (monocolor) */
 
   for (i = 0; i < 8; ++i) {
     vic[i * 2] = 20 + i * 30;  /* X (all < 256) */

@@ -93,8 +93,8 @@ between the two border compare lines so the flip-flop is never set and the
 VIC keeps drawing sprites into the border; a second interrupt near the top
 restores 25-row mode each frame. The two handlers are installed by hand in
 an `__asm` block (CIA masking, `$0314`/`$0315` vector, `$ea81` exit), and
-the ghost is a multicolor `__sprite`. It needs real VIC-II timing, so run
-it in Web64 — the pure-CPU harness has no raster.
+the ghost is a hires `__sprite`. It needs real VIC-II timing, so run it in
+Web64 — the pure-CPU harness has no raster.
 
 ## Tooling
 
