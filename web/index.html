@@ -352,6 +352,68 @@ main()
   for (;;) ;               /* admire the balloon */
 }
 `;
+  const SPRITE_MC_DEMO = RT_INCLUDE + `
+/* A multicolor sprite: 12 pairs per row (each 2 px wide), 21 rows.
+   . = 00 transparent          o = 10 sprite color   ($d027, red)
+   - = 01 shared multicolor 1  ($d025, white shine)
+   x = 11 shared multicolor 2  ($d026, brown basket)
+   24 chars of . / x per row would give a hires sprite instead. */
+__sprite balloon = {
+  .... oooo ....
+  ..oo oooo oo..
+  .o-o oooo ooo.
+  .--o oooo ooo.
+  .--o oooo ooo.
+  o--o oooo oooo
+  o-oo oooo oooo
+  oooo oooo oooo
+  oooo oooo oooo
+  oooo oooo oooo
+  .ooo oooo ooo.
+  .ooo oooo ooo.
+  ..oo oooo oo..
+  ...o oooo o...
+  .... x..x ....
+  .... x..x ....
+  .... x..x ....
+  ...x xxxx x...
+  ...x xxxx x...
+  ...x xxxx x...
+  .... xxxx ....
+};
+
+char spr0ptr   *= 0x07f8;    /* sprite pointers sit after the $0400 screen */
+char spr_enable *= 0xd015;
+char spr_mc    *= 0xd01c;    /* multicolor mode, one bit per sprite */
+char spr_mc1   *= 0xd025;    /* the '-' pairs (01) */
+char spr_mc2   *= 0xd026;    /* the 'x' pairs (11) */
+char spr0_x    *= 0xd000;
+char spr0_y    *= 0xd001;
+char spr0_col  *= 0xd027;    /* the 'o' pairs (10) */
+
+main()
+{
+  char *dst;
+  int i;
+
+  /* sprite data must sit on a 64-byte boundary in the VIC bank —
+     copy it to block 128 ($2000) */
+  dst = 0x2000;
+  for (i = 0; i < 64; ++i)
+    dst[i] = balloon[i];
+
+  spr0ptr = 128;
+  spr0_x = 172;
+  spr0_y = 120;
+  spr0_col = 2;              /* red */
+  spr_mc1 = 1;               /* white */
+  spr_mc2 = 9;               /* brown */
+  spr_mc = 1;                /* sprite 0 multicolor on */
+  spr_enable = 1;
+
+  for (;;) ;                 /* admire the balloon */
+}
+`;
   const HELLO_DEMO = RT_INCLUDE + `
 extern _fastcall putchar() *= 0xffd2;
 
@@ -372,8 +434,10 @@ main()
       ext: '.c', body: () => RT_INCLUDE + '\nmain()\n{\n}\n' },
     { id: 'hello', label: 'Hello world', desc: 'prints via the KERNAL putchar',
       ext: '.c', body: () => HELLO_DEMO },
-    { id: 'sprite', label: 'Sprite demo', desc: '__sprite balloon shown via the VIC',
+    { id: 'sprite', label: 'Sprite (hires)', desc: '__sprite with . / x pixels, one color',
       ext: '.c', body: () => SPRITE_DEMO },
+    { id: 'spritemc', label: 'Sprite (multicolor)', desc: '__sprite with . - o x pairs, three colors',
+      ext: '.c', body: () => SPRITE_MC_DEMO },
     { id: 'header', label: 'Header file', desc: 'empty .h include file',
       ext: '.h', body: (n) => `/* ${n} */\n` },
   ];
