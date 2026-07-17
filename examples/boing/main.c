@@ -4,8 +4,9 @@
  * screen, drawn with cc64-web's __sprite extension.
  *
  * The three sprites are the same ball with the checker pattern rotated by
- * one column — cycling them as the ball moves makes it spin, forward or
- * backward depending on the direction of travel.
+ * one column; the frame is picked straight from the x position
+ * ((px/2) % 3), which locks the checkers to the screen so the ball
+ * rolls over them — no drift, any speed, either direction.
  *
  * Multicolor pixels (12 pairs per row): . = transparent,
  * o = 10 = the sprite's own color ($d027, red),
@@ -119,7 +120,6 @@ char *src, *dst;
 main()
 {
   int x, y, vx, vy, px;
-  char frame;
 
   /* sprite data must sit on 64-byte boundaries in the VIC bank:
      blocks 128..130 = $2000, $2040, $2080 */
@@ -142,7 +142,6 @@ main()
   spr_enable = 1;            /* position set — now show it */
 
   vx = 16;  vy = 0;          /* 16 = exactly 2 px/frame: no 1px/2px beat */
-  frame = 0;
 
   for (;;) {
     while (raster == 251) ;  /* one update per frame */
@@ -160,11 +159,10 @@ main()
     spr_xmsb = px > 255;     /* 9th bit */
     spr0_y = y >> 3;
 
-    /* spin one column per frame, against the direction of travel: the
-       checker shift (2 px) exactly cancels the 2 px/frame movement, so
-       the pattern stays fixed in space and the ball rolls smoothly */
-    if (vx > 0) { ++frame; if (frame == 3) frame = 0; }
-    else { if (frame == 0) frame = 3; --frame; }
-    spr0_ptr = 128 + frame;
+    /* pick the spin frame straight from the x position: each frame
+       shifts the checkers one column (2 px), so (px/2) % 3 keeps the
+       pattern locked to the screen while the ball rolls over it — no
+       drift, any speed, either direction */
+    spr0_ptr = 128 + (px >> 1) % 3;
   }
 }

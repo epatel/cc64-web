@@ -74,8 +74,8 @@ and the shadow term (34, at the shadow's dithered edge).
 `examples/boing/` is the `__sprite` showcase: a red/white checkered ball
 (hello, Amiga) bouncing around the screen with gravity, drawn as three
 multicolor `__sprite` frames — the same ball with its checker pattern
-shifted one column, cycled through the sprite pointer so it spins with
-the direction of travel. Along the way it demonstrates the raster-compare
+shifted one column, the sprite pointer picked from the x position so the
+checkers stay locked to the screen and the ball rolls over them. Along the way it demonstrates the raster-compare
 frame loop, the 9th sprite-x bit, 1/8-pixel fixed-point movement, and the
 char-typed-`#define` gotcha (`0 + XMIN`) that once froze the ball against
 the left wall.

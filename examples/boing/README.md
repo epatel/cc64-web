@@ -17,9 +17,10 @@ __sprite ball0 = {
 Each row is 12 pairs (`.` transparent, `-` = shared multicolor $d025 =
 white, `o` = the sprite's own color $d027 = red); 24-char rows of `.`/`x`
 would give a hires sprite instead. The three frames are the same ball
-with the checker pattern shifted one column — cycling the sprite pointer
-through them makes it spin, forward or backward with the sign of the
-horizontal velocity.
+with the checker pattern shifted one column; the sprite pointer is picked
+straight from the x position (`(px/2) % 3`), which locks the checkers to
+the screen — the ball rolls over a fixed pattern, drift-free at any speed
+in either direction.
 
 The rest is a plain VIC single-sprite demo: the 64-byte arrays are copied
 to $2000/$2040/$2080 (sprite data must sit on 64-byte boundaries in the
