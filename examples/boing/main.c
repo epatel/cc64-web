@@ -3,10 +3,11 @@
 /* boing — a red/white checkered ball (hello, Amiga) bouncing around the
  * screen, drawn with cc64-web's __sprite extension.
  *
- * The three sprites are the same ball with the checker pattern rotated by
- * one column; the frame is picked straight from the x position
- * ((px/2) % 3), which locks the checkers to the screen so the ball
- * rolls over them — no drift, any speed, either direction.
+ * The six sprites are the same ball with the checker pattern rotated by
+ * one column each — the full period, since the checkers repeat every 6
+ * columns (3 red + 3 white). The frame is picked straight from the x
+ * position ((px/2) % 6), which locks the checkers to the screen so the
+ * ball rolls over them — no drift, any speed, either direction.
  *
  * Multicolor pixels (12 pairs per row): . = transparent,
  * o = 10 = the sprite's own color ($d027, red),
@@ -85,6 +86,78 @@ __sprite ball2 = {
   .... ---o ....
 };
 
+__sprite ball3 = {
+  .... --oo ....
+  ...- --oo o...
+  ..o- --oo o...
+  .oo- --oo o-..
+  .oo- --oo o-..
+  .--o oo-- -oo.
+  ---o oo-- -oo.
+  ---o oo-- -oo.
+  ---o oo-- -oo.
+  ---o oo-- -oo.
+  ooo- --oo o---
+  ooo- --oo o--.
+  ooo- --oo o--.
+  ooo- --oo o--.
+  ooo- --oo o--.
+  .--o oo-- -oo.
+  .--o oo-- -o..
+  .--o oo-- -o..
+  ..-o oo-- -...
+  ...o oo-- -...
+  .... --oo ....
+};
+
+__sprite ball4 = {
+  .... -ooo ....
+  ...- -ooo -...
+  ..-- -ooo -...
+  .o-- -ooo --..
+  .o-- -ooo --..
+  .-oo o--- ooo.
+  --oo o--- ooo.
+  --oo o--- ooo.
+  --oo o--- ooo.
+  --oo o--- ooo.
+  oo-- -ooo ---o
+  oo-- -ooo ---.
+  oo-- -ooo ---.
+  oo-- -ooo ---.
+  oo-- -ooo ---.
+  .-oo o--- ooo.
+  .-oo o--- oo..
+  .-oo o--- oo..
+  ..oo o--- o...
+  ...o o--- o...
+  .... -ooo ....
+};
+
+__sprite ball5 = {
+  .... ooo- ....
+  ...- ooo- -...
+  ..-- ooo- -...
+  .--- ooo- --..
+  .--- ooo- --..
+  .ooo ---o oo-.
+  -ooo ---o oo-.
+  -ooo ---o oo-.
+  -ooo ---o oo-.
+  -ooo ---o oo-.
+  o--- ooo- --oo
+  o--- ooo- --o.
+  o--- ooo- --o.
+  o--- ooo- --o.
+  o--- ooo- --o.
+  .ooo ---o oo-.
+  .ooo ---o oo..
+  .ooo ---o oo..
+  ..oo ---o o...
+  ...o ---o o...
+  .... ooo- ....
+};
+
 /* VIC-II */
 char border     *= 0xd020;
 char background *= 0xd021;
@@ -122,10 +195,13 @@ main()
   int x, y, vx, vy, px;
 
   /* sprite data must sit on 64-byte boundaries in the VIC bank:
-     blocks 128..130 = $2000, $2040, $2080 */
+     blocks 128..133 = $2000..$2140 */
   copy64(ball0, 0x2000);
   copy64(ball1, 0x2040);
   copy64(ball2, 0x2080);
+  copy64(ball3, 0x20c0);
+  copy64(ball4, 0x2100);
+  copy64(ball5, 0x2140);
 
   putchar(147);              /* clear the screen */
   border = 12;               /* medium grey frame ... */
@@ -133,7 +209,7 @@ main()
   spr0_col = 2;              /* red */
   spr_mc1 = 1;               /* white */
   spr_mc = 1;                /* sprite 0 multicolor on */
-  spr0_ptr = 128;
+  spr0_ptr = 130;            /* start phase: (100/2) % 6 = 2 */
 
   x = 800;  y = 480;         /* start at (100, 60) */
   spr0_x = 100;
@@ -162,9 +238,11 @@ main()
     spr0_y = y >> 3;
 
     /* pick the spin frame straight from the x position: each frame
-       shifts the checkers one column (2 px), so (px/2) % 3 keeps the
-       pattern locked to the screen while the ball rolls over it — no
-       drift, any speed, either direction */
-    spr0_ptr = 128 + (px >> 1) % 3;
+       shifts the checkers one column (2 px), and the full pattern
+       period is 6 columns (3 red + 3 white), so (px/2) % 6 over six
+       frames keeps the pattern locked to the screen while the ball
+       rolls over it — with only half the phases the checkers would
+       color-flip every 6 px */
+    spr0_ptr = 128 + (px >> 1) % 6;
   }
 }

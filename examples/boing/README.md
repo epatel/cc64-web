@@ -16,9 +16,11 @@ __sprite ball0 = {
 
 Each row is 12 pairs (`.` transparent, `-` = shared multicolor $d025 =
 white, `o` = the sprite's own color $d027 = red); 24-char rows of `.`/`x`
-would give a hires sprite instead. The three frames are the same ball
-with the checker pattern shifted one column; the sprite pointer is picked
-straight from the x position (`(px/2) % 3`), which locks the checkers to
+would give a hires sprite instead. The six frames are the same ball with
+the checker pattern shifted one column each — the full period, since the
+checkers repeat every 6 columns (3 red + 3 white; with only half the
+phases the pattern color-flips every 6 px). The sprite pointer is picked
+straight from the x position (`(px/2) % 6`), which locks the checkers to
 the screen — the ball rolls over a fixed pattern, drift-free at any speed
 in either direction.
 
