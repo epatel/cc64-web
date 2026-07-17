@@ -49,12 +49,15 @@ oracle.
 - `stat,` emits hi byte first — the init stream is reversed into memory.
 - Pointer scaling in `+`/`-` applies to the LEFT operand only.
 - Sources without `main()` are library modules — `link-lib` is NOT ported yet.
-- cc64-web EXTENSIONS (real cc64 rejects both; details in docs/PLAN.md):
+- cc64-web EXTENSIONS (real cc64 rejects all three; details in docs/PLAN.md):
   `__zeropage int x;` puts file-scope vars in zp $57..$70 with zp addressing
   (no initializers; `*=` addresses < $100 also get zp opcodes), and
   `__asm { ... }` embeds raw 6502 in function bodies (src/asmblock.js —
   local labels, symbol+offset for self-modifying code, auto zp/abs; see
   the raytracer's fmul: 2,185 → 266 cyc/call — the last ~48 from passing
-operands straight into the zp cells instead of function parameters).
+operands straight into the zp cells instead of function parameters), and
+  `__sprite name = { <21 pixel rows> };` at file scope compiles to a
+  64-byte char array of C64 sprite data (hires `.`/`x` 24 px/row,
+  multicolor `.`/`-`/`o`/`x` 12 pairs/row; src/sprite.js).
 - VICE 3.9 flags: `-virtualdev8`, `+drive8truedrive`; segfaults under
   SDL_VIDEODRIVER=dummy on macOS (run with a real window).

@@ -37,6 +37,18 @@ source uses them):
   nothing is live. See `test/asmblock.test.mjs` and the raytracer's
   fmul/fdiv/isqrt.
 
+- **`__sprite` data blocks** (cc64-web only): file-scope
+  `__sprite name = { <21 raw pixel rows> };` compiles to a 64-byte char
+  array (63 bytes of C64 sprite data + 1 zero pad; `name` types like
+  `char name[64]`, allocated/initialized through the normal static init
+  stream — not 64-byte aligned, copy it to an aligned block for the VIC).
+  Rows are raw source lines (`src/sprite.js` via the scanner's
+  `rawBlockLines`, like `__asm`): whitespace inside a row is visual
+  grouping, `//` or `;` start a comment. Hires = 24 pixels/row of `.`/`x`;
+  multicolor = 12 pairs/row of `.` `-` `o` `x` = 00 01 10 11
+  (01 = shared $d025, 10 = own color $d027+n, 11 = shared $d026); the mode
+  comes from the row width. See `test/sprite.test.mjs`.
+
 Fidelity rules discovered so far:
 
 - 16-bit ints, all arithmetic wraps at 16 bits.

@@ -10,6 +10,7 @@
 
 import { T } from './scanner.js';
 import { assembleBlock } from './asmblock.js';
+import { parseSpriteRows, SPRITE_BYTES } from './sprite.js';
 import {
   T_INT, T_LVALUE, T_POINTER, T_FUNCTION, T_OFFSET, T_FASTCALL, T_EXTERN,
   T_PROTO, T_CONST, TYPE_DEFAULT, TYPE_GLOBAL, TYPE_LOCAL, DECL_MASK,
@@ -423,6 +424,7 @@ export class Parser {
       case: () => this.caseStmt(), default: () => this.defaultStmt(),
       switch: () => this.switchStmt(), return: () => this.returnStmt(),
       __asm: () => this.asmStmt(),      // cc64-web extension
+      __sprite: () => this.error('__sprite: file scope only'),
     };
     const w = this.tw();
     if (w.type === T.KEYWORD && STMTS[w.kw]) { this.accept(); STMTS[w.kw](); return true; }
@@ -845,8 +847,33 @@ export class Parser {
     return true;
   }
 
+  spriteDef() {                 // __sprite name = { pixel rows }; (cc64-web ext.)
+    const id = this.expectId();
+    if (!this.comesOp('=')) this.error('__sprite: = expected');
+    const w = this.tw();
+    if (!(w.type === T.CHAR && w.ch === '{')) { this.error('__sprite: { expected'); return; }
+    const lines = this.s.rawBlockLines();   // consumes through the closing }
+    this.expectChar(';');
+    let bytes = new Uint8Array(SPRITE_BYTES);
+    try { bytes = parseSpriteRows(lines); }
+    catch (e) { this.error(`__sprite ${id ?? ''}: ${e.message}`); }
+    this.nInits = 0;
+    this.initValues = [];
+    for (const b of bytes) this.oneInit(b);
+    this.nObj = bytes.length;
+    // same type a file-scope `char name[64] = {...}` would get
+    const t = setChar(TYPE_GLOBAL | T_POINTER) & ~T_LVALUE;
+    const obj = this.createStatic(t);
+    if (id !== null) {
+      const sym = this.symtab.putglobal(id);
+      sym.value = obj.v;
+      sym.type = obj.t;
+    }
+  }
+
   definitionQ() {
     this.declaratorFn = (id, t) => this.definitionDecl(id, t);
+    if (this.comesKw('__sprite')) { this.spriteDef(); return true; }
     const r = this.rangeOrTypeQ(TYPE_GLOBAL);
     if (r.f) { this.declaratorList(r.t); return true; }
     if (this.tw().type === T.EOF) return false;

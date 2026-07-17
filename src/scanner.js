@@ -28,7 +28,7 @@ export const KEYWORDS = [
   'do', 'if', 'for', 'int', 'auto', 'case', 'char', 'else', 'goto', 'break',
   'while', 'extern', 'return', 'static', 'switch', 'default', 'continue',
   'register', '_fastcall',
-  '__zeropage', '__asm',   // cc64-web extensions (zero-page vars, inline asm)
+  '__zeropage', '__asm', '__sprite',   // cc64-web extensions (zp vars, inline asm, sprite data)
 ];
 
 // operator token values in the original enum order (scanner.fth block 41)
@@ -89,7 +89,7 @@ export class Scanner {
   mark() { return this.wordNo; }
   advanced(mark) { return this.wordNo !== mark; }
 
-  // __asm support: thisword() must be the already-scanned '{'. Returns the
+  // __asm/__sprite support: thisword() must be the already-scanned '{'. Returns the
   // raw source lines up to the first '}' outside a ';' comment (text after
   // ';' belongs to the comment, so "; t = { x }" is fine), then resumes
   // normal tokenizing after it. Raw lines bypass C tokenization entirely
@@ -109,7 +109,7 @@ export class Scanner {
         return lines;
       }
       lines.push({ text: rest, line: this.lineNo });
-      if (this.eof) throw new ScanError('unterminated __asm block', this.lineNo);
+      if (this.eof) throw new ScanError('unterminated raw block (__asm/__sprite)', this.lineNo);
       this.nextline();
       rest = this.line;
     }
