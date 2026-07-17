@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cc64-web — small-C for the C64, in your browser</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
   :root {
     color-scheme: light dark;
@@ -143,6 +144,7 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .warp { display: inline-flex; align-items: center; gap: 5px; color: var(--dim);
           font: 12.5px var(--mono); cursor: pointer; user-select: none; }
+  .warp[hidden] { display: none; }
   .warp input { accent-color: var(--accent); margin: 0; }
   .warp:hover { color: var(--text); }
   aside select { background: var(--bg); color: var(--text); border: 1px solid var(--line);
