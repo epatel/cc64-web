@@ -483,7 +483,7 @@ main()
     }
     // seed the bundled examples once each (deleting one sticks; edits are
     // never overwritten)
-    for (const ex of ['raytracer', 'boing', 'ghosts']) {
+    for (const ex of ['raytracer', 'boing', 'ghosts', 'sideborders']) {
       if ((state.seeded ??= {})[ex] || state.projects[ex]) continue;
       try {
         const r = await fetch(`../examples/${ex}/${ex}.cc64proj.json`);

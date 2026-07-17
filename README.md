@@ -96,6 +96,19 @@ an `__asm` block (CIA masking, `$0314`/`$0315` vector, `$ea81` exit), and
 the ghost is a hires `__sprite`. It needs real VIC-II timing, so run it in
 Web64 — the pure-CPU harness has no raster.
 
+## Sprites in the side borders
+
+![sideborders](docs/sideborders.png)
+
+`examples/sideborders/` goes one harder: two ghosts in the **left and right
+borders**. Opening a side border means switching 40/38 columns (`$d016`) at
+an exact cycle on *every* raster line — a ~1-cycle window — so it needs a
+**cycle-stable raster** (a double interrupt whose `txs` cancels the entry
+jitter, then a loop that is exactly 63 cycles per line), no badlines (it
+runs inside the opened lower border), and **Y-expanded sprites** so the
+sprite DMA that steals CPU cycles is uniform across every opened line. All
+in cc64 C with an `__asm` handler.
+
 ## Tooling
 
 - `tools/run6502.mjs` — minimal NMOS 6502 interpreter with **cycle-exact
