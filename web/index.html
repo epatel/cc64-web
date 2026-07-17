@@ -118,7 +118,33 @@
   .pill .grab { margin-left: auto; color: var(--dim); font-size: .78rem;
                 border: 1px dashed var(--line); border-radius: 5px; padding: 3px 8px; }
 
+  /* ---- in-page dialogs (replace prompt/confirm/alert) ---- */
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+           border-radius: 10px; padding: 0; width: min(430px, calc(100vw - 40px));
+           box-shadow: 0 18px 50px rgb(0 0 0 / .35); }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  dialog form { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; }
+  .dlg-title { font: 600 13px/1 var(--mono); letter-spacing: .06em; margin: 0;
+               text-transform: uppercase; color: var(--dim); }
+  .dlg-msg { margin: 0; font-size: .92rem; }
+  .dlg-input { background: var(--bg); color: var(--text); border: 1px solid var(--line);
+               border-radius: 6px; padding: 7px 9px; font: 13px var(--mono); width: 100%; }
+  .dlg-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .dlg-templates { display: flex; flex-direction: column; gap: 2px; }
+  .dlg-templates label { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px;
+                         border-radius: 6px; cursor: pointer; font-size: .9rem; }
+  .dlg-templates label:hover { background: var(--bg); }
+  .dlg-templates input { accent-color: var(--accent); }
+  .dlg-templates .tname { font: 600 12.5px var(--mono); }
+  .dlg-templates .tdesc { color: var(--dim); font-size: .82rem; }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+  button.act.danger { background: var(--err); color: var(--bg); }
+
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .warp { display: inline-flex; align-items: center; gap: 5px; color: var(--dim);
+          font: 12.5px var(--mono); cursor: pointer; user-select: none; }
+  .warp input { accent-color: var(--accent); margin: 0; }
+  .warp:hover { color: var(--text); }
   aside select { background: var(--bg); color: var(--text); border: 1px solid var(--line);
                  border-radius: 6px; padding: 5px 8px; font: 12.5px var(--mono); max-width: 100%; }
   .hint { font-size: .82rem; color: var(--dim); margin: 0; }
@@ -180,6 +206,9 @@
     </div>
     <div class="row">
       <button class="act" id="runweb64" disabled hidden>Run in Web64</button>
+      <label class="warp" id="warplabel" hidden>
+        <input type="checkbox" id="warp" checked> warp
+      </label>
       <button class="act" id="download" disabled>Download .prg</button>
       <select id="golden" aria-label="Reference PRGs">
         <option value="">reference PRGs…</option>
@@ -195,6 +224,20 @@
   </aside>
 </div>
 
+<dialog id="modal">
+  <form method="dialog">
+    <h3 class="dlg-title" id="mtitle"></h3>
+    <p class="dlg-msg" id="mmsg" hidden></p>
+    <input class="dlg-input" id="minput" hidden autocomplete="off" spellcheck="false"
+           aria-label="Value">
+    <div class="dlg-templates" id="mtemplates" hidden role="radiogroup" aria-label="Template"></div>
+    <div class="dlg-actions">
+      <button type="button" class="quiet" id="mcancel">Cancel</button>
+      <button type="submit" class="act" id="mok" value="ok">OK</button>
+    </div>
+  </form>
+</dialog>
+
 <script type="module">
   import { compile } from '../src/compile.js';
   import { amalgamate } from '../src/amalgamate.js';
@@ -202,6 +245,136 @@
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  // ---------- in-page dialogs (no browser prompt/confirm/alert) ----------
+  // Resolves to null on cancel/Escape; otherwise {value, template}.
+  function openModal({ title, message = '', input = null, templates = null,
+                       ok = 'OK', cancel = true, danger = false }) {
+    return new Promise((resolve) => {
+      const dlg = $('modal'), inp = $('minput'), tpls = $('mtemplates');
+      $('mtitle').textContent = title;
+      $('mmsg').textContent = message;
+      $('mmsg').hidden = !message;
+      inp.hidden = input === null;
+      if (input !== null) inp.value = input;
+      tpls.hidden = !templates;
+      tpls.replaceChildren();
+      if (templates) {
+        for (const [i, t] of templates.entries()) {
+          const label = document.createElement('label');
+          const radio = Object.assign(document.createElement('input'),
+            { type: 'radio', name: 'tpl', value: t.id, checked: i === 0 });
+          const name = Object.assign(document.createElement('span'),
+            { className: 'tname', textContent: t.label });
+          const desc = Object.assign(document.createElement('span'),
+            { className: 'tdesc', textContent: t.desc });
+          label.append(radio, name, desc);
+          tpls.appendChild(label);
+        }
+      }
+      $('mok').textContent = ok;
+      $('mok').classList.toggle('danger', danger);
+      $('mcancel').hidden = !cancel;
+      $('mcancel').onclick = () => dlg.close('');
+      dlg.addEventListener('close', () => {
+        resolve(dlg.returnValue !== 'ok' ? null : {
+          value: input !== null ? inp.value.trim() : true,
+          template: templates ? tpls.querySelector('input:checked')?.value : undefined,
+        });
+      }, { once: true });
+      dlg.returnValue = '';
+      dlg.showModal();
+      if (input !== null) { inp.focus(); inp.select(); }
+    });
+  }
+  const uiPrompt = async (title, value) =>
+    (await openModal({ title, input: value }))?.value || null;
+  const uiConfirm = async (title, message, ok = 'Delete') =>
+    (await openModal({ title, message, ok, danger: true })) !== null;
+  const uiAlert = (title, message) =>
+    openModal({ title, message, cancel: false });
+
+  // ---------- "New file" templates ----------
+  const RT_INCLUDE = '#include "rt-c64-08-9f.h"\n';
+  const SPRITE_DEMO = RT_INCLUDE + `
+/* A hot-air balloon in hires 24x21 — cc64-web's __sprite extension.
+   . = transparent, x = sprite color (24 per row, 21 rows).
+   12 pairs per row of . - o x give a multicolor sprite instead. */
+__sprite balloon = {
+  ........ ..xxxx.. ........
+  ........ xxxxxxxx ........
+  ......xx xxxxxxxx xx......
+  .....xxx xxxxxxxx xxx.....
+  ....xxxx xxxxxxxx xxxx....
+  ....xxxx xxxxxxxx xxxx....
+  ....xxxx xxxxxxxx xxxx....
+  ....xxxx xxxxxxxx xxxx....
+  .....xxx xxxxxxxx xxx.....
+  ......xx xxxxxxxx xx......
+  .......x xxxxxxxx x.......
+  ........ xxxxxxxx ........
+  ........ .x....x. ........
+  ........ .x....x. ........
+  ........ ..x..x.. ........
+  ........ ..x..x.. ........
+  ........ ..xxxx.. ........
+  ........ ..xxxx.. ........
+  ........ ..xxxx.. ........
+  ........ ..xxxx.. ........
+  ........ ..xxxx.. ........
+};
+
+char spr0ptr *= 0x07f8;    /* sprite pointers sit after the $0400 screen */
+char spr_enable *= 0xd015;
+char spr0_x *= 0xd000;
+char spr0_y *= 0xd001;
+char spr0_col *= 0xd027;
+
+main()
+{
+  char *dst;
+  int i;
+
+  /* sprite data must sit on a 64-byte boundary in the VIC bank —
+     copy it to block 128 ($2000) */
+  dst = 0x2000;
+  for (i = 0; i < 64; ++i)
+    dst[i] = balloon[i];
+
+  spr0ptr = 128;
+  spr0_x = 172;
+  spr0_y = 120;
+  spr0_col = 7;            /* yellow */
+  spr_enable = 1;
+
+  for (;;) ;               /* admire the balloon */
+}
+`;
+  const HELLO_DEMO = RT_INCLUDE + `
+extern _fastcall putchar() *= 0xffd2;
+
+puts(s)
+char *s;
+{
+  while (*s != 0)
+    putchar(*s++);
+}
+
+main()
+{
+  puts("hello, world!\\n");
+}
+`;
+  const TEMPLATES = [
+    { id: 'empty', label: 'Empty program', desc: 'main() and the runtime include',
+      ext: '.c', body: () => RT_INCLUDE + '\nmain()\n{\n}\n' },
+    { id: 'hello', label: 'Hello world', desc: 'prints via the KERNAL putchar',
+      ext: '.c', body: () => HELLO_DEMO },
+    { id: 'sprite', label: 'Sprite demo', desc: '__sprite balloon shown via the VIC',
+      ext: '.c', body: () => SPRITE_DEMO },
+    { id: 'header', label: 'Header file', desc: 'empty .h include file',
+      ext: '.h', body: (n) => `/* ${n} */\n` },
+  ];
 
   // ---------- storage: named projects, each a set of .c/.h files ----------
   const LIB = ['rt-c64-08-9f.h', 'libc-c64.h', 'ctype.h', 'stdio.h', 'stdlib.h', 'string.h'];
@@ -242,22 +415,24 @@
       if (v1) { state.projects['migrated'] = { files: JSON.parse(v1) }; localStorage.removeItem(LS_V1); }
       store();
     }
-    // seed the bundled raytracer example once (deleting it sticks; edits are
+    // seed the bundled examples once each (deleting one sticks; edits are
     // never overwritten)
-    if (!(state.seeded ??= {}).raytracer && !state.projects.raytracer) {
+    for (const ex of ['raytracer', 'boing']) {
+      if ((state.seeded ??= {})[ex] || state.projects[ex]) continue;
       try {
-        const r = await fetch('../examples/raytracer/raytracer.cc64proj.json');
+        const r = await fetch(`../examples/${ex}/${ex}.cc64proj.json`);
         if (r.ok) {
           const p = await r.json();
           if (p.format === 'cc64web-project' && p.files) {
-            state.projects[p.name || 'raytracer'] = { files: p.files };
-            state.seeded.raytracer = true;
+            state.projects[p.name || ex] = { files: p.files };
+            state.seeded[ex] = true;
             store();
           }
         }
       } catch { /* not served (e.g. partial deploy) — skip */ }
     }
     if (!(state.activeProject in state.projects)) state.activeProject = Object.keys(state.projects)[0];
+    $('warp').checked = state.warp !== false;   // default on
     renderProjects();
     renderFiles();
     openFile(state.activeFile in proj().files ? state.activeFile : Object.keys(proj().files)[0], false);
@@ -274,24 +449,28 @@
     store(); renderFiles();
     openFile(Object.keys(proj().files)[0], false);
   };
-  $('newproj').onclick = () => {
-    const name = prompt('Project name:', `project-${Object.keys(state.projects).length + 1}`);
+  $('newproj').onclick = async () => {
+    const name = await uiPrompt('New project', `project-${Object.keys(state.projects).length + 1}`);
     if (!name || state.projects[name]) return;
     state.projects[name] = { files: { 'main.c': '#include "rt-c64-08-9f.h"\n\nmain()\n{\n}\n' } };
     state.activeProject = name;
     store(); renderProjects(); renderFiles(); openFile('main.c', false);
   };
-  $('renproj').onclick = () => {
-    const name = prompt('Rename project:', state.activeProject);
+  $('renproj').onclick = async () => {
+    const name = await uiPrompt('Rename project', state.activeProject);
     if (!name || name === state.activeProject || state.projects[name]) return;
     state.projects[name] = proj();
     delete state.projects[state.activeProject];
     state.activeProject = name;
     store(); renderProjects();
   };
-  $('delproj').onclick = () => {
-    if (Object.keys(state.projects).length < 2) { alert('Cannot delete the last project.'); return; }
-    if (!confirm(`Delete project "${state.activeProject}" and its files?`)) return;
+  $('delproj').onclick = async () => {
+    if (Object.keys(state.projects).length < 2) {
+      await uiAlert('Delete project', 'Cannot delete the last project.');
+      return;
+    }
+    if (!await uiConfirm('Delete project',
+      `Delete project "${state.activeProject}" and its files?`)) return;
     delete state.projects[state.activeProject];
     state.activeProject = Object.keys(state.projects)[0];
     store(); renderProjects(); renderFiles();
@@ -383,20 +562,21 @@
     renderFiles();
   }
 
-  function newFile() {
-    let name = prompt('File name (.c or .h):', 'new.c');
-    if (!name) return;
-    if (!/\.(c|h)$/.test(name)) name += '.c';
+  async function newFile() {
+    const r = await openModal({ title: 'New file', input: 'new.c',
+                                templates: TEMPLATES, ok: 'Create' });
+    if (!r || !r.value) return;
+    const tpl = TEMPLATES.find((t) => t.id === r.template) ?? TEMPLATES[0];
+    let name = r.value;
+    if (!/\.(c|h)$/.test(name)) name += tpl.ext;
     if (!(name in proj().files)) {
-      proj().files[name] = name.endsWith('.c')
-        ? '#include "rt-c64-08-9f.h"\n\nmain()\n{\n}\n'
-        : `/* ${name} */\n`;
+      proj().files[name] = name.endsWith('.h') ? `/* ${name} */\n` : tpl.body(name);
     }
     store(); renderFiles(); openFile(name, false);
   }
 
-  function delFile(name) {
-    if (!confirm(`Delete ${name}?`)) return;
+  async function delFile(name) {
+    if (!await uiConfirm('Delete file', `Delete ${name}?`)) return;
     delete proj().files[name];
     store();
     if (active?.name === name) active = null;
@@ -546,8 +726,9 @@
   // Web64 handoff — deployed only: the server keeps the PRG in memory for
   // 5 minutes at a public URL, which web64's ?url= autostart can fetch.
   fetch('../api/ping').then((r) => {
-    if (r.ok) $('runweb64').hidden = false;
+    if (r.ok) { $('runweb64').hidden = false; $('warplabel').hidden = false; }
   }).catch(() => {});
+  $('warp').onchange = (e) => { state.warp = e.target.checked; store(); };
   $('runweb64').onclick = async () => {
     if (!prgBytes) return;
     // open the tab synchronously (inside the click gesture) — a window.open
@@ -561,7 +742,8 @@
       const url = new URL(path, location.href);
       // current web64 reads ?file= (+autorun); older bundles read ?url=.
       // Values must be raw, not percent-encoded.
-      const w64url = `https://web64.nofs.ai/?file=${url}&url=${url}&autorun=true&warp=true`;
+      const w64url = `https://web64.nofs.ai/?file=${url}&url=${url}&autorun=true` +
+        ($('warp').checked ? '&warp=true' : '');
       if (w64) w64.location = w64url;
       log(`<span class="ok">${esc(prgName)}</span> handed to Web64 — ` +
         `<a href="${esc(w64url)}" target="_blank" rel="noopener">open again</a> ` +
