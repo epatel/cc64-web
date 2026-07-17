@@ -119,7 +119,7 @@ char *src, *dst;
 main()
 {
   int x, y, vx, vy, px;
-  char frame, tick;
+  char frame;
 
   /* sprite data must sit on 64-byte boundaries in the VIC bank:
      blocks 128..130 = $2000, $2040, $2080 */
@@ -141,9 +141,8 @@ main()
   spr0_y = 60;
   spr_enable = 1;            /* position set — now show it */
 
-  vx = 14;  vy = 0;
+  vx = 16;  vy = 0;          /* 16 = exactly 2 px/frame: no 1px/2px beat */
   frame = 0;
-  tick = 0;
 
   for (;;) {
     while (raster == 251) ;  /* one update per frame */
@@ -161,12 +160,11 @@ main()
     spr_xmsb = px > 255;     /* 9th bit */
     spr0_y = y >> 3;
 
-    ++tick;
-    if (tick == 3) {         /* spin with the direction of travel */
-      tick = 0;
-      if (vx > 0) { ++frame; if (frame == 3) frame = 0; }
-      else { if (frame == 0) frame = 3; --frame; }
-      spr0_ptr = 128 + frame;
-    }
+    /* spin one column per frame, against the direction of travel: the
+       checker shift (2 px) exactly cancels the 2 px/frame movement, so
+       the pattern stays fixed in space and the ball rolls smoothly */
+    if (vx > 0) { ++frame; if (frame == 3) frame = 0; }
+    else { if (frame == 0) frame = 3; --frame; }
+    spr0_ptr = 128 + frame;
   }
 }
