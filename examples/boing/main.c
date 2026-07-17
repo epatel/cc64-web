@@ -107,7 +107,7 @@ extern _fastcall putchar() *= 0xffd2;   /* KERNAL CHROUT */
 #define XMIN  192          /*  24 * 8 */
 #define XMAX 2560          /* 320 * 8 */
 #define YMAX 1832          /* 229 * 8 */
-#define GRAVITY 3
+#define GRAVITY 1
 
 copy64(src, dst)
 char *src, *dst;
@@ -141,7 +141,9 @@ main()
   spr0_y = 60;
   spr_enable = 1;            /* position set — now show it */
 
-  vx = 16;  vy = 0;          /* 16 = exactly 2 px/frame: no 1px/2px beat */
+  vx = 8;  vy = 0;           /* 8 = exactly 1 px/frame — slow Amiga drift;
+                                emulator frame-pacing jitter scales with
+                                speed, so slower also looks steadier */
 
   for (;;) {
     while (raster == 251) ;  /* one update per frame */
