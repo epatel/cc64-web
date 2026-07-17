@@ -42,8 +42,9 @@ golden output is untouched unless a source opts in:
 - **`__asm { ... }`** inline assembly (`src/asmblock.js`) — a full
   line-oriented 6502 assembler inside function bodies: local labels,
   `symbol+offset` operands (self-modifying code works), `#<`/`#>`,
-  `.byte`/`.word`, automatic zp/abs selection, and identifiers that resolve
-  to C globals and `#define` constants through the compiler's symbol table.
+  `.byte`/`.word`, automatic zp/abs selection, forward `#<label`/`#>label`
+  byte-selects, and identifiers that resolve to C globals and `#define`
+  constants through the compiler's symbol table.
 - **`__sprite`** data blocks (`src/sprite.js`) — C64 sprites drawn as pixel
   art directly in the source: 21 raw rows compile to a 64-byte char array,
   hires (24 `.`/`x` pixels per row) or multicolor (12 `.`/`-`/`o`/`x`
@@ -80,6 +81,20 @@ to the screen and the ball rolls over them. Along the way it demonstrates the ra
 frame loop, the 9th sprite-x bit, 1/8-pixel fixed-point movement, and the
 char-typed-`#define` gotcha (`0 + XMIN`) that once froze the ball against
 the left wall.
+
+## Ghosts in the border
+
+![ghosts](docs/ghosts.png)
+
+`examples/ghosts/` is the harder demo: eight ghosts bob in the **lower
+border**, below where the 25-row screen ends — the classic VIC-II
+open-border trick. A raster **interrupt** switches the VIC to 24-row mode
+between the two border compare lines so the flip-flop is never set and the
+VIC keeps drawing sprites into the border; a second interrupt near the top
+restores 25-row mode each frame. The two handlers are installed by hand in
+an `__asm` block (CIA masking, `$0314`/`$0315` vector, `$ea81` exit), and
+the ghost is a multicolor `__sprite`. It needs real VIC-II timing, so run
+it in Web64 — the pure-CPU harness has no raster.
 
 ## Tooling
 

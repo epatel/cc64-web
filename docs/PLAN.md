@@ -29,7 +29,8 @@ source uses them):
   function bodies; line-oriented 6502 assembly emitted at the current code
   address (`src/asmblock.js`). Local labels, `;` comments, `#imm`,
   auto zp/abs, `(zp),y`, symbol+offset expressions (self-modifying code),
-  `#<`/`#>`, `.byte`/`.word`; identifiers resolve local labels first, then
+  `#<`/`#>` byte-selects (including forward labels, e.g. mutually-referencing
+  IRQ handlers), `.byte`/`.word`; identifiers resolve local labels first, then
   C globals / `#define` constants via the symbol table. The closing `}`
   also ends the block mid-line (but a `}` after `;` is comment text);
   raw lines bypass the C scanner (no PETSCII conversion, no `/* */`).
