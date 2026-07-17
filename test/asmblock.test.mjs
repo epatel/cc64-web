@@ -85,6 +85,28 @@ function asm(text, symbols = {}, origin = 0x2000) {
 }
 
 {
+  // forward #<label / #>label immediates (e.g. mutually-referencing IRQ
+  // handlers) resolve through the fixup pass; backward ones resolve inline
+  const { bytes, errors } = asm(`
+    lda #<fwd       ; forward: lo byte of a label defined below
+    lda #>fwd       ; forward: hi byte
+  back:
+    lda #<back      ; backward: resolved inline
+  fwd:
+    rts
+  `);
+  assert.deepStrictEqual(errors, []);
+  const O = 0x2000;
+  assert.deepStrictEqual(bytes, [
+    0xa9, (O + 6) & 0xff,          // lda #<fwd  (fwd = $2006)
+    0xa9, (O + 6) >> 8,            // lda #>fwd
+    0xa9, (O + 4) & 0xff,          // lda #<back (back = $2004)
+    0x60,                          // rts (fwd)
+  ]);
+  console.log('ok: forward #<label / #>label immediates');
+}
+
+{
   const { errors } = asm('bogus $12\n lda ($1234),y\n bne faraway');
   assert.strictEqual(errors.length, 3, `three diagnostics: ${errors}`);
   assert.match(errors[0], /unknown instruction/);

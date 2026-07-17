@@ -177,9 +177,13 @@ export function assembleBlock(rawLines, { code, resolve, error }) {
     if (arg[0] === '#') {
       const e = parseExpr(arg.slice(1), labels, resolve, err);
       if (!e) continue;
-      if (e.v === undefined) { err(`immediate needs a resolved value: ${arg}`); continue; }
-      if (e.v > 0xff) { err(`immediate > 255: ${arg} (use #< or #>)`); continue; }
       if (op.imm === undefined) { err(`no immediate mode for ${im[1]}`); continue; }
+      // a forward label is fine when a byte is selected (#<fwd / #>fwd) —
+      // emit() routes it through a 1-byte fixup patched once the label is known
+      if (e.v === undefined && e.part !== '<' && e.part !== '>') {
+        err(`immediate needs a resolved value: ${arg}`); continue;
+      }
+      if (e.v !== undefined && e.v > 0xff) { err(`immediate > 255: ${arg} (use #< or #>)`); continue; }
       emit('imm', e, 1);
     } else if ((m = arg.match(/^\((.+),\s*x\)$/i))) {
       const e = parseExpr(m[1], labels, resolve, err);
