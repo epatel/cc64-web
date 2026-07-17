@@ -33,7 +33,7 @@ Forth→JS port map and fidelity notes.
 
 ## Extensions (clearly fenced off)
 
-Two additions real cc64 rejects, documented as deliberate divergences —
+Three additions real cc64 rejects, documented as deliberate divergences —
 golden output is untouched unless a source opts in:
 
 - **`__zeropage`** storage class — file-scope variables allocated in
@@ -44,6 +44,10 @@ golden output is untouched unless a source opts in:
   `symbol+offset` operands (self-modifying code works), `#<`/`#>`,
   `.byte`/`.word`, automatic zp/abs selection, and identifiers that resolve
   to C globals and `#define` constants through the compiler's symbol table.
+- **`__sprite`** data blocks (`src/sprite.js`) — C64 sprites drawn as pixel
+  art directly in the source: 21 raw rows compile to a 64-byte char array,
+  hires (24 `.`/`x` pixels per row) or multicolor (12 `.`/`-`/`o`/`x`
+  pairs), whitespace as visual grouping.
 
 ## The raytracer
 
@@ -62,6 +66,19 @@ squares-only `fsq()`, a leading-zero skip in `fdiv`, and an incremental
 shadow term. Every step verified on the cycle-exact 6502 harness —
 byte-identical renders, except the reflection algebra (212 dither pixels)
 and the shadow term (34, at the shadow's dithered edge).
+
+## Boing
+
+![boing](docs/boing.png)
+
+`examples/boing/` is the `__sprite` showcase: a red/white checkered ball
+(hello, Amiga) bouncing around the screen with gravity, drawn as three
+multicolor `__sprite` frames — the same ball with its checker pattern
+shifted one column, cycled through the sprite pointer so it spins with
+the direction of travel. Along the way it demonstrates the raster-compare
+frame loop, the 9th sprite-x bit, 1/8-pixel fixed-point movement, and the
+char-typed-`#define` gotcha (`0 + XMIN`) that once froze the ball against
+the left wall.
 
 ## Tooling
 
@@ -89,14 +106,15 @@ localStorage, a files rail with the bundled cc64 headers, syntax
 highlighting driven by the compiler's real keyword list, a brace-depth
 formatter, and unity builds (`src/amalgamate.js` concatenates the
 project's `.c` files with hoisted, deduped includes). Projects export and
-import as `.cc64proj.json` — `examples/raytracer/mkproject.mjs` builds one
-for the raytracer.
+import as `.cc64proj.json` — each example's `mkproject.mjs` builds one, and
+the deployed IDE seeds the raytracer and boing projects on first visit.
 
 ### Handoff to Web64
 
 The deployed instance keeps compiled PRGs **in memory** for 5 minutes
 (`server/cc64web_server.py`, ~180 lines of Python stdlib) and hands Web64 a
-fetchable URL via its `?file=` autostart, warp enabled during load:
+fetchable URL via its `?file=` autostart, warp during load toggleable via
+a checkbox:
 
     compile → POST api/prg → open web64.nofs.ai/?file=<prg-url>&autorun=true&warp=true
 
