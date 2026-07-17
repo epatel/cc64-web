@@ -99,10 +99,12 @@ char spr0_ptr   *= 0x07f8;   /* sprite pointers sit after the $0400 screen */
 
 extern _fastcall putchar() *= 0xffd2;   /* KERNAL CHROUT */
 
-/* movement in 1/8 pixels; the ball is 24x21, visible x is 24..343 */
+/* movement in 1/8 pixels; the ball is 24x21, visible x is 24..343.
+   XMIN fits in a byte, so cc64 types it CHAR and assigning it directly
+   plants a junk high byte — always use it as `0 + XMIN` (see the
+   char-#define gotcha in the raytracer README) */
 #define XMIN  192          /*  24 * 8 */
 #define XMAX 2560          /* 320 * 8 */
-#define YMIN  400          /*  50 * 8 */
 #define YMAX 1832          /* 229 * 8 */
 #define GRAVITY 3
 
@@ -126,8 +128,8 @@ main()
   copy64(ball2, 0x2080);
 
   putchar(147);              /* clear the screen */
-  border = 15;               /* Amiga workbench grey, roughly */
-  background = 15;
+  border = 12;               /* medium grey frame ... */
+  background = 15;           /* ... around workbench-grey, roughly */
   spr0_col = 2;              /* red */
   spr_mc1 = 1;               /* white */
   spr_mc = 1;                /* sprite 0 multicolor on */
@@ -150,7 +152,7 @@ main()
     vy = vy + GRAVITY;
     x = x + vx;
     y = y + vy;
-    if (x < XMIN) { x = XMIN; vx = -vx; }
+    if (x < 0 + XMIN) { x = 0 + XMIN; vx = -vx; }
     if (x > XMAX) { x = XMAX; vx = -vx; }
     if (y > YMAX) { y = YMAX; vy = -vy; }
 
