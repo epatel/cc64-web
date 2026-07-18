@@ -109,6 +109,21 @@ runs inside the opened lower border), and **Y-expanded sprites** so the
 sprite DMA that steals CPU cycles is uniform across every opened line. All
 in cc64 C with an `__asm` handler.
 
+## Sprites beside the frame
+
+![sideborders2](docs/sideborders2.png)
+
+`examples/sideborders2/` moves the same side-border trick *up into the
+display window* — a ghost in the left and right border level with the
+middle of the screen, beside the text frame. That's harder than the
+lower-border version for two reasons: the badlines that only exist inside
+the window would steal ~40 cycles and wreck the per-line timing, dodged
+here with a per-line **FLD** `$d011` write so no line is ever a badline;
+and the ~1-cycle window is unforgiving enough that a naive single-IRQ sync
+only opens part of the band, so it takes the **double-interrupt** stabiliser
+(the per-line `$d016` flip itself stays the plain naive loop). Verified
+stable and full-height in VICE.
+
 ## Tooling
 
 - `tools/run6502.mjs` — minimal NMOS 6502 interpreter with **cycle-exact

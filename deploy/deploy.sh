@@ -11,6 +11,7 @@ rsync -aR --delete \
   examples/boing/boing.cc64proj.json \
   examples/ghosts/ghosts.cc64proj.json \
   examples/sideborders/sideborders.cc64proj.json \
+  examples/sideborders2/sideborders2.cc64proj.json \
   rpi6:cc64-web/
 
 ssh rpi6 '
