@@ -65,3 +65,6 @@ the pure-CPU harness in `tools/run6502.mjs` has no raster or sprite DMA.
   would need different NOP counts.
 - The KERNAL IRQ vector is replaced, so RUN/STOP no longer breaks the
   program — reset to exit.
+- Why it actually works, read from the emulator that reproduces it:
+  [how-vice-models-the-side-border-bug.md](how-vice-models-the-side-border-bug.md)
+  traces VICE's two border flip-flops and the CSEL-gated compare cycles.
